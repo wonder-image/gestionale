@@ -173,11 +173,12 @@ final class ContactTools
     /**
      * Tutti i contatti della scheda (`ContactPoints::all()`), i principali
      * per primi: `is_primary`, `label` (`access` = l'email con cui la persona
-     * entra nel sito) e, per le aziende, `departments` (vuota = tutto). Solo
+     * entra nel sito), `departments` (i tipi ufficio, vuota = tutto) e
+     * `departments_label`, da leggere. Solo
      * per leggerli: si scrive alle email che dicono `contact_email` dei
      * referenti e le aree, mai a una a caso.
      *
-     * @return list<array{kind: string, label: string, value: string, phone_prefix: string, is_primary: bool, departments: list<string>}>
+     * @return list<array{kind: string, label: string, value: string, phone_prefix: string, is_primary: bool, departments: list<string>, departments_label: string}>
      */
     private static function points(string $owner, int $id, array $card): array
     {
@@ -193,7 +194,8 @@ final class ContactTools
             'value' => (string) ($point['value'] ?? ''),
             'phone_prefix' => (string) ($point['phone_prefix'] ?? ''),
             'is_primary' => !empty($point['is_primary']),
-            'departments' => array_values((array) ($point['departments'] ?? [])),
+            'departments' => $areas = array_values(array_map('strval', (array) ($point['departments'] ?? []))),
+            'departments_label' => DocumentReferents::areasLabel($areas),
         ], $rows);
     }
 

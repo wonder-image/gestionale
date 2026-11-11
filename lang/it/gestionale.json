@@ -4,8 +4,8 @@
         "relations": {
             "title_people": "Referenti",
             "title_companies": "Aziende",
-            "tooltip_people": "Le persone con cui parli in questa azienda, ognuna con la sua email e il suo telefono di lavoro. In «Altre opzioni» scegli di cosa si occupa e se riceve i documenti in copia.",
-            "tooltip_companies": "Le aziende per cui lavora questa persona, con l'email e il telefono che usa lì. In «Altre opzioni» scegli di cosa si occupa e se riceve i documenti in copia.",
+            "tooltip_people": "Le persone con cui parli in questa azienda, ognuna con il suo ruolo, il tipo ufficio, l'email e il telefono di lavoro. In «Altre opzioni» scegli se riceve i documenti in copia e se accede all'area clienti.",
+            "tooltip_companies": "Le aziende per cui lavora questa persona, con il ruolo, il tipo ufficio, l'email e il telefono che usa lì. In «Altre opzioni» scegli se riceve i documenti in copia e se accede all'area clienti.",
             "filter": "Ruolo",
             "filter_all": "Tutti",
             "filter_customers": "Clienti",
@@ -23,7 +23,7 @@
             "who_roles_help": "Un'azienda si inserisce una volta sola: se le vendi e compri anche da lei, scegli il ruolo «Cliente e fornitore».",
             "points_company": "Recapiti dell'azienda",
             "points_company_help": "Email e telefoni generici dell'azienda, come info@, amministrazione o centralino. Quelli di una persona precisa vanno nei referenti, qui sotto.",
-            "points_company_alone_help": "Email e telefoni dell'azienda. Il principale di ogni tipo è quello usato per i documenti.",
+            "points_company_alone_help": "Email e telefoni dell'azienda. Con «Tipo ufficio» dici a quale ufficio arriva ognuno.",
             "points_person": "Email e telefoni",
             "points_person_help": "I recapiti personali. Se la persona ha un account sul sito, l'email di accesso non si cambia da qui.",
             "billing_company_help": "Sede legale e dati fiscali, usati sui documenti. Partita IVA e codice fiscale vengono controllati al salvataggio.",
@@ -38,7 +38,9 @@
             "pickup_none": "Nessun indirizzo di ritiro: vale quello di fatturazione.",
             "other_new": "Altri dati (facoltativi)",
             "other": "Altri dati",
-            "relation_advanced": "Altre opzioni: di cosa si occupa, documenti e accesso"
+            "relation_advanced": "Altre opzioni: documenti e accesso",
+            "relation_new_person": "Nuovo referente",
+            "relation_new_company": "Nuova azienda"
         },
         "brands": {
             "title": "Brand",

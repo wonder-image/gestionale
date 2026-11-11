@@ -131,16 +131,16 @@ check('persone, aziende e fornitori hanno il riquadro «Contatti» al posto di e
         foreach ([CustomerResource::class, CompanyResource::class, SupplierResource::class] as $resource) {
             $campi = $chiavi($resource);
 
-            if (!in_array('contact_points', $campi, true) || !in_array('contact_box_form', $campi, true)
+            if (array_diff(['contact_points_email', 'contact_points_phone', 'contact_box_form'], $campi) !== [] || in_array('contact_points', $campi, true)
                 || array_intersect(['email', 'phone_prefix', 'phone', 'contact_points_form'], $campi) !== []) {
                 return false;
             }
         }
 
-        // «Si occupa di» sulle righe dei contatti solo per le aziende.
+        // «Tipo ufficio» sulle righe dei contatti di aziende e persone, senza «Principale».
         $colonne = static function (string $resource): array {
             foreach ($resource::formSchema() as $campo) {
-                if ($campo->name === 'contact_points') {
+                if ($campo->name === 'contact_points_email') {
                     return array_map(static fn ($c): string => $c->name, (array) $campo->get('context')['columns']);
                 }
             }
@@ -148,7 +148,9 @@ check('persone, aziende e fornitori hanno il riquadro «Contatti» al posto di e
             return [];
         };
 
-        return in_array('departments', $colonne(CompanyResource::class), true) && !in_array('departments', $colonne(CustomerResource::class), true)
+        return in_array('departments', $colonne(CompanyResource::class), true) && in_array('departments', $colonne(CustomerResource::class), true)
+            && !in_array('is_primary', $colonne(CompanyResource::class), true) && !in_array('label', $colonne(CompanyResource::class), true)
+            && CustomerResource::officeTypeResource() === \Wonder\Plugin\Gestionale\Resources\Contacts\OfficeTypeResource::class
             && CustomerResource::contactPointOwner() === 'contact' && CompanyResource::contactPointOwner() === 'company';
     } finally {
         $forza(null);
@@ -326,7 +328,7 @@ check('la card dei recapiti ha il riquadro, il marker e lo script; la fatturazio
         $forza(null);
     }
 
-    return $nomi($contatti) === ['contact_points', 'contact_box_form'] && $script !== [] && str_contains($script[0], 'caContactForm')
+    return $nomi($contatti) === ['contact_points_email', 'contact_points_phone', 'contact_box_form'] && $script !== [] && str_contains($script[0], 'caContactForm')
         && array_slice($nomi($fatturazione), -3) === ['place_id', 'lat', 'lng'] && array_slice($nomi($persona), -3) === ['place_id', 'lat', 'lng']
         && str_contains($via($fatturazione), 'data-wi-place-names') && str_contains($via($fatturazione), 'data-ca-place-name="business_name"')
         && !str_contains($via($persona), 'data-ca-place-name');
@@ -382,11 +384,12 @@ check('il repeater dei referenti tiene le colonne di lavoro, anche senza «Brand
         $forza(null);
     }
 
-    // Persona e nome nuovo (12); mansione, email, prefisso, telefono di lavoro (12); aree e flag dietro «Altre opzioni».
+    // Persona e nome nuovo (12); ruolo e tipo ufficio (12); email, prefisso, telefono di lavoro (12); flag dietro «Altre opzioni».
     return ($colonne['person_id'] ?? 0) + ($colonne['new_name'] ?? 0) + ($colonne['new_surname'] ?? 0) === 12
-        && ($colonne['job_title'] ?? 0) + ($colonne['email'] ?? 0) + ($colonne['phone_prefix'] ?? 0) + ($colonne['phone'] ?? 0) === 12
+        && ($colonne['job_title'] ?? 0) + ($colonne['departments'] ?? 0) === 12
+        && ($colonne['email'] ?? 0) + ($colonne['phone_prefix'] ?? 0) + ($colonne['phone'] ?? 0) === 12
         && !isset($colonne['brand_ids'])
-        && ($colonne['departments'] ?? 0) === 12 && ($avanzate ?? []) === ['departments', 'is_primary', 'receives_documents', 'access', 'brand_ids'] && $vuoto === true;
+        && ($avanzate ?? []) === ['is_primary', 'receives_documents', 'access', 'brand_ids'] && $vuoto === true;
 });
 
 summary();
