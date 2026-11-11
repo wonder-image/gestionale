@@ -5,7 +5,6 @@ namespace Wonder\Plugin\Gestionale\Resources\Contacts;
 use Wonder\App\ResourceSchema\NavigationSchema;
 use Wonder\App\ResourceSchema\TableLayoutSchema;
 use Wonder\Elements\Components\Card;
-use Wonder\Elements\Components\HelpText;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Plugin\CustomerAccount\Resources\Concerns\HasCompanyBrands;
 use Wonder\App\Support\Repeater;
@@ -351,8 +350,9 @@ class CompanyResource extends CustomerResource
 
         return [
             (new Card)->components([
-                SectionTitle::make($brands ? __t('gestionale.contacts.brands.title') : __t('gestionale.contacts.groups.title'))->columnSpan(12),
-                HelpText::make((string) ($brands ? __t('gestionale.contacts.brands.tooltip') : __t('gestionale.contacts.groups.tooltip')))->columnSpan(12),
+                SectionTitle::make($brands ? __t('gestionale.contacts.brands.title') : __t('gestionale.contacts.groups.title'))
+                    ->tooltip((string) ($brands ? __t('gestionale.contacts.brands.tooltip') : __t('gestionale.contacts.groups.tooltip')))
+                    ->columnSpan(12),
                 ...($brands ? [
                     // Il titolo è già quello della card; senza brand non c'è una riga vuota da ignorare.
                     static::getInput(static::$brandsInput)->label('')->repeaterStartEmpty()->columnSpan(12),

@@ -335,8 +335,12 @@ aziende e fornitori, in creazione e in modifica: chi è, `brandCards()`,
 recapiti, `relationCards()`, fatturazione, consegna, `Accordion` «Altri dati»
 (`paymentCards()` e note). Regole:
 
-- ogni card ha un `HelpText` visibile sotto il titolo; i testi stanno in
-  `gestionale.contacts.form.*` e `gestionale.contacts.relations.tooltip_*`;
+- la spiegazione di ogni card sta nel tooltip del titolo
+  (`SectionTitle::tooltip()`), mai in un `HelpText` sotto; i testi stanno in
+  `gestionale.contacts.form.*`, `gestionale.contacts.relations.tooltip_*`,
+  `brands.tooltip` e `groups.tooltip`. L'`Accordion` «Altri dati» non ha
+  descrizione;
+- brand, referenti e indirizzi partono senza righe (`repeaterStartEmpty()`);
 - la card dei recapiti si chiama «Recapiti dell'azienda» o «Email e telefoni»
   (`form.points_company` / `form.points_person`): input, marker e script del
   riquadro di customer-account non cambiano;
