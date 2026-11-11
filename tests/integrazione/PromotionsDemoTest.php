@@ -168,3 +168,5 @@ check('clear non tocca una campagna vera', function () {
         return is_array(DiscountCampaign::find(['id' => (int) $vera->insert_id], 1));
     });
 });
+
+summary();
