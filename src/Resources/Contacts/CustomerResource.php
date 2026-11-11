@@ -17,7 +17,6 @@ use Throwable;
 use Wonder\Elements\Components\Accordion;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
-use Wonder\Elements\Components\HelpText;
 use Wonder\Elements\Components\RichText;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
@@ -407,11 +406,13 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
         $ruoli = static::rolesShown();
         $azienda = static::isCompanySide();
         $testo = static fn (string $chiave): string => (string) __t('gestionale.contacts.form.'.$chiave);
-        $aiuto = static fn (string $chiave): HelpText => HelpText::make($testo($chiave))->columnSpan(12);
+        // Le spiegazioni stanno nel tooltip del titolo, mai sotto.
+        $titolo = static fn (string $titolo, string $aiuto = ''): SectionTitle => ($aiuto !== ''
+            ? SectionTitle::make($titolo)->tooltip($testo($aiuto))
+            : SectionTitle::make($titolo))->columnSpan(12);
 
         $chiE = [
-            SectionTitle::make($testo($azienda ? 'who_company' : 'who_person'))->columnSpan(12),
-            ...($ruoli ? [$aiuto('who_roles_help')] : []),
+            $titolo($testo($azienda ? 'who_company' : 'who_person'), $ruoli ? 'who_roles_help' : ''),
             ...($azienda
                 ? [static::getInput('business_name')->required()->columnSpan($ruoli ? 6 : 9)]
                 : [static::getInput('name')->columnSpan(4), static::getInput('surname')->columnSpan(5)]),
@@ -425,8 +426,7 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
 
         // Con i ruoli gli indirizzi servono anche al fornitore: è dove si ritira la merce.
         $consegna = (new Card)->components([
-            SectionTitle::make(static::addressesTitle())->columnSpan(12),
-            $aiuto(static::addressesKind().'_help'),
+            $titolo(static::addressesTitle(), static::addressesKind().'_help'),
             static::getInput('addresses')->columnSpan(12),
             ...(static::addressBrandsShown() ? [static::getInput(self::ADDRESS_BRANDS_MARKER)->columnSpan(12)] : []),
         ])->columns(12)->columnSpan(12);
@@ -436,8 +436,10 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
             // I brand dopo il nome: la scheda comincia da chi è l'azienda.
             ...static::brandCards(),
             (new Card)->components([
-                SectionTitle::make($testo($azienda ? 'points_company' : 'points_person'))->columnSpan(12),
-                $aiuto($azienda ? (static::relationsShown() ? 'points_company_help' : 'points_company_alone_help') : 'points_person_help'),
+                $titolo(
+                    $testo($azienda ? 'points_company' : 'points_person'),
+                    $azienda ? (static::relationsShown() ? 'points_company_help' : 'points_company_alone_help') : 'points_person_help'
+                ),
                 // Il titolo è già quello della card: niente secondo titolo sopra le righe.
                 static::getInput(static::$pointsInput)->label('')->columnSpan(12),
                 static::getInput(static::$boxMarker)->columnSpan(12),
@@ -447,8 +449,7 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
             // I legami stanno subito dopo i recapiti, da tutti e due i lati.
             ...static::relationCards(),
             (new Card)->components([
-                SectionTitle::make('Dati di fatturazione')->columnSpan(12),
-                $aiuto($azienda ? 'billing_company_help' : 'billing_person_help'),
+                $titolo('Dati di fatturazione', $azienda ? 'billing_company_help' : 'billing_person_help'),
                 ...($azienda ? [
                     static::getInput('cf')->columnSpan(3),
                     static::getInput('pi')->columnSpan(3),
@@ -482,7 +483,6 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
         // modifica: si apre da solo se la scheda ha già un pagamento o una nota.
         $nuova = static::currentId() === null;
         $altri = Accordion::make($testo($nuova ? 'other_new' : 'other'))
-            ->description($testo(static::paymentCards() === [] ? 'other_help_notes' : 'other_help'))
             ->components($extra)
             ->columns(12)
             ->columnSpan(12);
@@ -601,8 +601,9 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
 
         return [
             (new Card)->components([
-                SectionTitle::make(__t('gestionale.contacts.relations.'.($company ? 'title_people' : 'title_companies')))->columnSpan(12),
-                HelpText::make((string) __t('gestionale.contacts.relations.'.($company ? 'tooltip_people' : 'tooltip_companies')))->columnSpan(12),
+                SectionTitle::make(__t('gestionale.contacts.relations.'.($company ? 'title_people' : 'title_companies')))
+                    ->tooltip((string) __t('gestionale.contacts.relations.'.($company ? 'tooltip_people' : 'tooltip_companies')))
+                    ->columnSpan(12),
                 // Il form dichiara un solo repeater, quello del lato della scheda
                 static::getInput($company ? self::RELATION_PEOPLE : self::RELATION_COMPANIES)->columnSpan(12),
                 static::getInput(self::RELATION_MARKER)->columnSpan(12),
@@ -1740,6 +1741,8 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
                     ->positionKey('position')
             )
             ->nested()
+            // Parte vuoto: senza altri indirizzi vale quello di fatturazione.
+            ->repeaterStartEmpty()
             ->repeaterSortable()
             ->repeaterAddLabel('Aggiungi indirizzo')
             ->repeaterDeleteTitle('Elimina indirizzo')

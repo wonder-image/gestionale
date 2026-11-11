@@ -38,8 +38,6 @@
             "pickup_none": "Nessun indirizzo di ritiro: vale quello di fatturazione.",
             "other_new": "Altri dati (facoltativi)",
             "other": "Altri dati",
-            "other_help": "Pagamento e note: si possono aggiungere anche dopo.",
-            "other_help_notes": "Note interne: si possono aggiungere anche dopo.",
             "relation_advanced": "Altre opzioni: di cosa si occupa, documenti e accesso"
         },
         "brands": {

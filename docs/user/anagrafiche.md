@@ -80,8 +80,9 @@ nello stesso ordine, in creazione e in modifica:
 7. **Altri dati**: pagamento e note. In creazione è chiuso; in modifica si apre
    da solo se c'è qualcosa di compilato.
 
-Sotto il titolo di ogni sezione una riga dice che cosa va scritto lì. Brand e
-referenti partono senza righe: premi *Aggiungi* solo se servono.
+Accanto al titolo di ogni sezione c'è una **i**: passaci sopra con il mouse per
+leggere che cosa va scritto lì. Brand, referenti e indirizzi partono senza
+righe: premi *Aggiungi* solo se servono.
 
 Per questo partita IVA, codice fiscale ed email sono **unici**: se li riscrivi
 su una scheda nuova, il gestionale ti dice di chi sono già e ti lascia aprire
