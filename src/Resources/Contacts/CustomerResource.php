@@ -78,6 +78,7 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
     use HasContactRelations {
         syncRepeaterRelations as relationsSyncRepeaterRelations;
         contactRelationFields as allContactRelationFields;
+        relationPersonExistsMessage as visiblePersonExistsMessage;
     }
 
     public static string $model = Contact::class;
@@ -739,6 +740,16 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
      * Una persona creata da una riga dei referenti è anche cliente quando il
      * gestionale vende alle persone; in modo «solo aziende» resta referente.
      */
+    /** Una persona che chi scrive non vede non si nomina. */
+    protected static function relationPersonExistsMessage(array $person, string $email): string
+    {
+        if (ContactVisibility::visibleIds(Contact::$table, [(int) ($person['id'] ?? 0)]) === []) {
+            return UserError::make('contact.duplicate_hidden')->getMessage();
+        }
+
+        return static::visiblePersonExistsMessage($person, $email);
+    }
+
     protected static function relationPersonPayload(array $values): array
     {
         return ['is_customer' => CustomerMode::people() ? 'true' : 'false'] + $values;
