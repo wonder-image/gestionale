@@ -620,7 +620,8 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
             $campi[] = static::getInput('phone_prefix')->columnSpan(2);
             $campi[] = static::getInput('phone')->columnSpan(4);
         } else {
-            $campi[] = static::getInput(static::$pointsInput)->columnSpan(12);
+            // Il titolo della card dice già cosa sono: niente etichetta doppia.
+            $campi[] = static::getInput(static::$pointsInput)->label('')->columnSpan(12);
         }
 
         return (new Card)->components([
@@ -642,7 +643,7 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
         return [
             (new Card)->components([
                 SectionTitle::make((string) __t('contacts.person_socials'))->columnSpan(12),
-                static::getInput(static::$socialsInput)->columnSpan(12),
+                static::getInput(static::$socialsInput)->label('')->columnSpan(12),
                 static::getInput(static::$socialsMarker)->columnSpan(12),
             ])->columns(12)->columnSpan(12),
         ];

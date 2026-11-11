@@ -69,7 +69,7 @@ check('`Crm::apply()` accende l\'interruttore di customer-account e non lo spegn
     return !$spenta && $accesa && $resta;
 });
 
-check('i social del brand chiedono il brand kit e il CRM', function () use ($forza) {
+check('recapiti e social del brand seguono il CRM, anche a brand kit spento', function () use ($forza) {
     $esiti = [];
 
     foreach ([[true, true], [true, false], [false, true]] as [$kit, $crm]) {
@@ -79,7 +79,7 @@ check('i social del brand chiedono il brand kit e il CRM', function () use ($for
 
     $forza(null);
 
-    return $esiti === [true, false, false];
+    return $esiti === [true, false, true];
 });
 
 check('il form del brand passa lo stato del CRM a customer-account', function () {

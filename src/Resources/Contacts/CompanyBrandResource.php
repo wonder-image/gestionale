@@ -130,16 +130,16 @@ class CompanyBrandResource extends BaseCompanyBrandResource
         return FormField::key(self::ADDRESSES_INPUT)
             ->repeater([
                 RepeaterColumn::key('id')->hidden(),
-                RepeaterColumn::key('company_name')->text()->readonly()->label($text('company'))->columnSpan(5),
+                RepeaterColumn::key('company_name')->text()->readonly()->label($text('company'))->columnSpan(4),
                 RepeaterColumn::key('scope')->text()->readonly()->label($text('scope'))->columnSpan(4),
                 RepeaterColumn::key('label')->text()->label($text('label'))->columnSpan(3),
                 // La riga la ricava places.js dal nome della via: il prefisso dichiarato vale per tutte.
                 RepeaterColumn::key('street')->text()->label($text('street'))
-                    ->attribute('data-wi-place="'.self::ADDRESSES_INPUT.'[]["')->columnSpan(10),
+                    ->attribute('data-wi-place="'.self::ADDRESSES_INPUT.'[]["')->columnSpan(9),
                 RepeaterColumn::key('number')->text()->label($text('number'))->columnSpan(2),
                 RepeaterColumn::key('country')->country('province')->value('IT')->label($text('country'))->columnSpan(3),
                 RepeaterColumn::key('province')->states('IT')->label($text('province'))->columnSpan(3),
-                RepeaterColumn::key('city')->text()->label($text('city'))->columnSpan(4),
+                RepeaterColumn::key('city')->text()->label($text('city'))->columnSpan(3),
                 RepeaterColumn::key('cap')->text()->label($text('cap'))->columnSpan(2),
                 // Place ID e coordinate li scrive Google: nascosti, ripuliti da `CompanyAddresses`.
                 RepeaterColumn::key('place_id')->hidden(),

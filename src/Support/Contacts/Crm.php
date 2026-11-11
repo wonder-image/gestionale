@@ -45,10 +45,10 @@ final class Crm
         return AccountCrm::enabled();
     }
 
-    /** I social del brand: con il brand kit e con il CRM. */
+    /** I recapiti multipli e i social del brand: con il CRM, anche a brand kit spento. */
     public static function brandSocials(): bool
     {
-        return Gestionale::feature('brand_kit') && self::enabled();
+        return self::enabled();
     }
 
     /**

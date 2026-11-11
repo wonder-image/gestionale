@@ -199,8 +199,9 @@ all'interruttore di customer-account (`Support\Crm::enable()`), che è quello
 che leggono i suoi form: una Resource lo chiama prima di costruire un form o
 di salvare (`CompanyBrandResource::useKit()` lo fa già). Accesa: più recapiti
 tipizzati (`email`, `phone`, `mobile`, `whatsapp`) per persone, aziende, brand
-e referenti, e i social di brand e persone; i social del brand chiedono anche
-`brand_kit` (`Crm::brandSocials()`). Spenta, i form mostrano un'email e un
+e referenti, e i social di brand e persone. Recapiti e social del brand si
+vedono anche con `brand_kit` spenta (`Crm::brandSocials()`,
+`BrandData::CRM_FIELDS`): il resto del kit no. Spenta, i form mostrano un'email e un
 telefono e salvano con `primary_only` (`ContactPoints::syncAll()`,
 `BrandData::clean()`): i recapiti in più e i social restano salvati.
 

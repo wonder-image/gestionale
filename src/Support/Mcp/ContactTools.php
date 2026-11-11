@@ -214,11 +214,12 @@ final class ContactTools
         }
 
         $kit = Gestionale::feature('brand_kit');
+        $crm = Gestionale::feature('crm');
         $out = [];
 
         foreach ($links as $link) {
             $data = BrandData::fromRow((array) $link['brand']);
-            $keep = $kit ? [...BrandData::BASE_FIELDS, ...BrandData::KIT_FIELDS] : BrandData::BASE_FIELDS;
+            $keep = [...BrandData::BASE_FIELDS, ...($kit ? BrandData::KIT_FIELDS : ($crm ? BrandData::CRM_FIELDS : []))];
             $out[] = [
                 'id' => (int) $link['brand_id'],
                 'name' => CompanyBrands::label((array) $link['brand']),
