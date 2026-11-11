@@ -588,10 +588,10 @@ check('la riga del referente: persona, ruolo e ufficio insieme, poi i contatti a
 
     $tolte = ['new_name', 'new_surname', 'new_email', 'is_primary', 'receives_documents', 'access', 'departments'];
 
-    return ($colonne['person_id'] ?? 0) + ($colonne['job_title'] ?? 0) + ($colonne['department'] ?? 0) === 12
-        && ($aziende['company_id'] ?? 0) + ($aziende['job_title'] ?? 0) + ($aziende['department'] ?? 0) === 12
+    return ($colonne['person_id'] ?? 0) + ($colonne['job_title'] ?? 0) + ($colonne['department'] ?? 0) === 9
+        && ($aziende['company_id'] ?? 0) + ($aziende['job_title'] ?? 0) + ($aziende['department'] ?? 0) === 9
         // Senza CRM un'email e un telefono su una riga; con, il repeater dei «Contatti aziendali».
-        && ($colonne['email'] ?? 0) + ($colonne['phone_prefix'] ?? 0) + ($colonne['phone'] ?? 0) === 12 && !isset($colonne['points'])
+        && ($colonne['email'] ?? 0) + ($colonne['phone_prefix'] ?? 0) + ($colonne['phone'] ?? 0) === 9 && !isset($colonne['points'])
         && ($conCrm['points'] ?? 0) === 12 && !isset($conCrm['email']) && !isset($conCrm['phone'])
         && ($aziendeCrm['points'] ?? 0) === 12 && !isset($aziendeCrm['email'])
         && array_intersect($tolte, [...array_keys($colonne), ...array_keys($conCrm), ...array_keys($aziende), ...array_keys($aziendeCrm)]) === []

@@ -300,9 +300,9 @@ check('nel repeater degli indirizzi la via cerca anche per nome e porta place ID
         && !str_contains($colonne['street'] ?? '', 'data-ca-place-name')
         && count(array_intersect(['place_id', 'lat', 'lng'], array_keys($colonne))) === 3
         && !array_key_exists('business_name', $colonne) && array_key_exists('is_default', $colonne)
-        // Le righe del form: etichetta, nome e cognome; via, civico e predefinito; paese, provincia, città e CAP.
-        && $somma(['label', 'name', 'surname']) === 12 && $somma(['street', 'number', 'is_default']) === 12
-        && $somma(['country', 'province', 'city', 'cap']) === 12
+        // Le righe del form: etichetta, nome e cognome; via, civico e predefinito; paese, provincia, città e CAP (somma 9: il repeater è ordinabile).
+        && $somma(['label', 'name', 'surname']) === 9 && $somma(['street', 'number', 'is_default']) === 9
+        && $somma(['country', 'province', 'city', 'cap']) === 9
         // Una riga salvata senza `business_name` non lo porta al salvataggio: il valore salvato resta.
         && !array_key_exists('business_name', $pulita) && !array_key_exists('business_name', $buona)
         && $pulita['place_id'] === null && $pulita['lat'] === 45.46 && ($pulita['street'] ?? '') === 'Via Roma'

@@ -318,7 +318,7 @@ check('i brand di un\'azienda, anche per chi ne vede solo alcuni: brand e ruolo 
 
     foreach ([$colonne($commerciale), $colonne($ufficio)] as $righe) {
         // `data-ca-company-brand`: lo script conta i brand per mostrare i «Brand seguiti» dei referenti.
-        if (array_keys($righe) !== ['brand_id', 'role'] || $righe['brand_id'][0] + $righe['role'][0] !== 12
+        if (array_keys($righe) !== ['brand_id', 'role'] || $righe['brand_id'][0] + $righe['role'][0] !== 9
             || !str_contains($righe['brand_id'][1], 'data-ca-company-brand')) {
             return false;
         }
