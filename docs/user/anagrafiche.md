@@ -129,35 +129,39 @@ il campo su *Nessuno* e salva.
 
 Tutte le email e i telefoni di una persona, di un'azienda o di un fornitore
 stanno nel riquadro dei contatti della scheda (**Recapiti dell'azienda** per
-aziende e fornitori, **Email e telefoni** per le persone): una riga per contatto, con il
-tipo (*Email* o *Telefono*) e **Principale**. Scegli il tipo e la riga mostra
-solo il suo campo: l'email, oppure prefisso e numero (il prefisso parte da
-quello del paese del sito, come la nazione negli indirizzi). L'etichetta
-(*Lavoro*, *Personale*, *Fatturazione*, *Altro*) sta in **Informazioni
-avanzate** della riga, chiusa finché non serve. Il principale di ogni tipo è quello
-che il gestionale usa (ordini, documenti, ricerche, export): uno per tipo, e se
-non ne scegli uno lo è la prima riga che aggiungi. Un contatto già salvato con
-la sua etichetta non diventa principale da solo: salvare una scheda senza
-toccarla la lascia com'è (il numero di telefono viene solo riscritto in cifre,
-senza spazi). Cambiando principale il vecchio resta, come riga normale. Un'email scritta male o ripetuta ferma il salvataggio, e una
-email già di un'altra scheda pure (se la scheda non è fra le tue, senza dire di
-chi è).
+aziende e fornitori, **Email e telefoni** per le persone), divisi per tipo:
+prima le **Email**, poi i **Telefoni**, ognuno con il suo *Aggiungi*. Una riga
+ha il recapito (l'email, oppure prefisso e numero: il prefisso parte da quello
+del paese del sito) e il **Tipo ufficio**: uno o più fra *Amministrazione*,
+*Acquisti*, *Commerciale*, *Tecnico*, *Direzione*, *Altro* e quelli che hai
+creato tu. Vuoto vuol dire che il recapito vale per tutto. Così
+*amministrazione@* riceve proforma e solleciti anche senza creare un referente
+(vedi sotto).
+
+Per **creare un tipo ufficio** nuovo (per esempio *Marketing*) premi il **+**
+accanto al campo, scrivi il nome e conferma: il tipo si seleziona nella riga e
+da quel momento lo trovi in tutte le schede, sui recapiti e sui referenti. Un
+nome che esiste già riprende quel tipo, senza doppioni. I tipi creati si
+rinominano ma non si eliminano.
+
+Il recapito che il gestionale usa (ordini, documenti, ricerche, export) è uno
+per tipo: quello che lo era già, altrimenti la prima riga. Non c'è più da
+sceglierlo. Le righe si tolgono con il cestino. Salvare una scheda senza toccarla la lascia com'è
+(il numero di telefono viene solo riscritto in cifre, senza spazi). Un'email
+scritta male o ripetuta ferma il salvataggio, e una email già di un'altra
+scheda pure (se la scheda non è fra le tue, senza dire di chi è).
 
 - Una persona con un **account sul sito** ha in testa l'**Email di accesso**,
   bloccata: si cambia dal suo account, non dal gestionale (nemmeno dalle
   finestre dell'ordine, che lo dicono). Le altre email non servono mai per
   accedere.
-- Una scheda che ha già un contatto non resta **senza**: l'ultima riga non si
-  elimina (il cestino è spento) e un riquadro svuotato non si salva. Se
+- Una scheda che ha già un contatto non resta **senza**: un riquadro svuotato
+  non si salva. Se
   l'ultimo contatto è sbagliato, cambialo. Una scheda nuova può nascere senza
   contatti.
-- Le righe di un'**azienda** hanno anche **Si occupa di**, nelle informazioni
-  avanzate della riga: le aree a cui va
-  quell'email (vuoto = tutte). Così *amministrazione@* riceve proforma e
-  solleciti anche senza creare un referente (vedi sotto).
 
 La scheda in lettura mostra tutti i contatti, con il principale, l'email di
-accesso e le aree. Le finestre *Contatti* dell'ordine da ufficio cambiano solo
+accesso e i tipi ufficio. Le finestre *Contatti* dell'ordine da ufficio cambiano solo
 email e telefono principali.
 
 ## Dati di fatturazione
@@ -213,7 +217,7 @@ fiscale, e per un'azienda partita IVA, SDI e PEC, più l'indirizzo). Sotto, **tu
 i suoi dati** — nome o ragione sociale, ruolo, stato, email, telefono, accesso al
 sito (solo per le persone) e note — e gli **indirizzi di consegna**. La scheda di
 un'azienda elenca anche i suoi **referenti**, quella di una persona le **aziende**
-per cui è referente: il nome apre la loro scheda, sotto c'è la mansione e se è il
+per cui è referente: il nome apre la loro scheda, sotto c'è il ruolo e se è il
 principale o riceve i documenti. Poi gli ordini, il carrello, gli
 **abbonamenti** (con la funzionalità *Abbonamenti*) e, in fondo, i coupon.
 
@@ -302,10 +306,13 @@ nel form di una **persona** il riquadro **Aziende** elenca le aziende per cui
 lavora. La stessa persona può essere referente di più aziende ed è sempre
 **una scheda sola**, con un solo accesso al sito.
 
-Una riga mostra solo quello che serve di solito: la persona, la mansione,
-l'email e il telefono di lavoro. Aree, referente principale, documenti in
-copia, accesso all'area clienti e brand seguiti stanno in **Altre opzioni**
-della riga, chiuse finché non servono.
+Ogni referente è una **scheda richiudibile**: chiusa mostra il nome, il ruolo
+e l'email; un clic sul titolo la apre. Aperta mostra quello che serve di
+solito: la persona, il **Ruolo**, il **Tipo ufficio**, l'email e il telefono
+di lavoro. Referente principale, documenti in copia, accesso all'area clienti
+e brand seguiti stanno in **Altre opzioni**, chiuse finché non servono. Le
+schede si riordinano trascinandole dai **puntini** a sinistra del titolo e si
+tolgono con il cestino.
 
 Per ogni riga cerca la scheda nella tendina scrivendo una parte del nome. Se la
 persona non c'è ancora, lascia la tendina su *Nuova persona* e scrivi **Nome** e
@@ -320,13 +327,14 @@ o la stessa **partita IVA** si seleziona quella che c'è, senza doppioni. Il
 referente nuovo non è né cliente né fornitore; l'azienda nuova è cliente.
 Funziona anche quando crei un cliente o un'azienda nuovi. Poi:
 
-- **Si occupa di** — una o più aree fra *Amministrazione*, *Acquisti*,
-  *Commerciale*, *Tecnico*, *Direzione* e *Altro*; vuoto vuol dire che si
-  occupa di tutto. Dice a chi mandare i documenti (vedi sotto);
+- **Tipo ufficio**: lo stesso campo dei recapiti: uno o più fra
+  *Amministrazione*, *Acquisti*, *Commerciale*, *Tecnico*, *Direzione*, *Altro*
+  e quelli creati da te con il **+**; vuoto vuol dire che si occupa di tutto.
+  Dice a chi mandare i documenti (vedi sotto);
 - **Brand seguiti** — con la funzionalità *Brand*, i brand dell'azienda di cui
   si occupa; vuoto = tutti;
-- **Mansione** — il ruolo scritto a mano, per esempio *Responsabile acquisti*;
-  se manca, sui documenti e nelle tendine compaiono le aree di cui si occupa;
+- **Ruolo**: scritto a mano, per esempio *Responsabile acquisti*;
+  se manca, sui documenti e nelle tendine compaiono i suoi tipi ufficio;
 - **Referente principale** — è il referente proposto quando fai un preventivo,
   un ordine da ufficio o un DDT per quell'azienda;
 - **Riceve i documenti** — chi ha questa risposta riceve in copia le email dei

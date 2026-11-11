@@ -323,9 +323,10 @@ Tutto passa da `Support\Contacts\DocumentReferents`:
   (anche l'email proposta dall'ordine quando l'azienda non ne ha una);
 - `useReader()` e `useCompanyReader()` servono solo ai test.
 
-Ogni riga di `people()` / `options()` porta anche `departments` (le aree di
-cui si occupa, vuota = tutte) e `role`: la mansione, o le etichette delle aree
-(`areasLabel()`) se la mansione è vuota. Le tendine dei referenti mostrano
+Ogni riga di `people()` / `options()` porta anche `departments` (i tipi
+ufficio, vuota = tutti: le chiavi di serie o l'id di un tipo creato, come
+testo) e `role`: il ruolo (`job_title`), o le etichette dei tipi
+(`areasLabel()`) se il ruolo è vuoto. Le tendine dei referenti mostrano
 `role`.
 
 ### Layout del form delle anagrafiche
@@ -342,10 +343,20 @@ recapiti, `relationCards()`, fatturazione, consegna, `Accordion` «Altri dati»
   descrizione;
 - brand, referenti e indirizzi partono senza righe (`repeaterStartEmpty()`);
 - la card dei recapiti si chiama «Recapiti dell'azienda» o «Email e telefoni»
-  (`form.points_company` / `form.points_person`): input, marker e script del
-  riquadro di customer-account non cambiano;
-- `contactPeopleField()` e `contactCompaniesField()` sono ridefiniti qui: riga
-  corta (scheda, mansione, email e telefono di lavoro) e il resto dietro
+  (`form.points_company` / `form.points_person`) e usa
+  `contactBoxByKindFields()` di customer-account: un elenco per le email e uno
+  per i telefoni, senza la tendina del tipo e senza «Principale»; ogni riga ha
+  il recapito e «Tipo ufficio», per aziende, fornitori e persone;
+- «Tipo ufficio» è lo stesso select a scelta multipla sui recapiti e sui
+  referenti (`ContactRelations::departments()`: tipi di serie più quelli di
+  `contact_office_types`). Il «+» crea un tipo con
+  `Resources\Contacts\OfficeTypeResource` (path `app/gestionale/tipi-ufficio`,
+  permessi dell'area contatti), che `CustomerResource::officeTypeResource()`
+  passa al trait; non ha voce di menu e non si elimina;
+- `contactPeopleField()` e `contactCompaniesField()` sono ridefiniti qui: una
+  scheda richiudibile per riga (`repeaterCollapsible()`: nome, poi ruolo ed
+  email), ordinabile dalla maniglia, con scheda, ruolo, tipo ufficio, email e
+  telefono di lavoro in vista e il resto dietro
   `repeaterAdvanced()` con l'etichetta `form.relation_advanced`; i repeater di
   referenti e brand usano `repeaterStartEmpty()`. Le chiavi postate sono le
   stesse del trait;

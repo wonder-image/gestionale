@@ -90,12 +90,12 @@ final class CustomerSheet
      * I contatti della scheda (`ContactPoints::all()` di customer-account),
      * un recapito per riga: prima email e telefono principali, poi gli altri,
      * con l'etichetta («Email di accesso» per quella con cui la persona entra
-     * nel sito), «principale» e, per le aziende, le aree di cui si occupa.
+     * nel sito), «principale» e i tipi ufficio.
      * Senza recapiti la voce dice «Nessun recapito». Tutto escapato.
      *
      * @param list<array{kind?: string, value?: string, phone_prefix?: string, label?: string, is_primary?: bool, departments?: list<string>}> $points
      * @param array<string, string> $labels etichetta => testo (`ContactPoints::labels()` più quella dell'accesso)
-     * @param array<string, string> $areas area => testo (`ContactRelations::departments()`)
+     * @param array<string, string> $areas tipo ufficio => testo (`ContactRelations::departments()`)
      * @return list<DataItem>
      */
     public static function points(array $points, array $labels = [], array $areas = []): array

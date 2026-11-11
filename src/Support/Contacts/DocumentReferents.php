@@ -175,7 +175,7 @@ final class DocumentReferents
                     : trim((string) ($contact['phone_prefix'] ?? '').' '.(string) ($contact['phone'] ?? '')),
                 'job_title' => $job = trim((string) ($row['job_title'] ?? '')),
                 'departments' => $areas = ContactRelations::cleanDepartments($row['departments'] ?? []),
-                // La mansione, altrimenti le aree di cui si occupa: è quello che si legge nelle tendine.
+                // Il ruolo, altrimenti i tipi ufficio: è quello che si legge nelle tendine.
                 'role' => $job !== '' ? $job : self::areasLabel($areas),
                 'is_primary' => ($row['is_primary'] ?? 'false') === 'true',
             ];

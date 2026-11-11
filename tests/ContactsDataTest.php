@@ -137,7 +137,7 @@ check('persone, aziende e fornitori hanno il riquadro «Contatti» al posto di e
             }
         }
 
-        // «Si occupa di» sulle righe dei contatti solo per le aziende.
+        // «Tipo ufficio» sulle righe dei contatti di aziende e persone, senza «Principale».
         $colonne = static function (string $resource): array {
             foreach ($resource::formSchema() as $campo) {
                 if ($campo->name === 'contact_points_email') {
@@ -148,7 +148,9 @@ check('persone, aziende e fornitori hanno il riquadro «Contatti» al posto di e
             return [];
         };
 
-        return in_array('departments', $colonne(CompanyResource::class), true) && !in_array('departments', $colonne(CustomerResource::class), true)
+        return in_array('departments', $colonne(CompanyResource::class), true) && in_array('departments', $colonne(CustomerResource::class), true)
+            && !in_array('is_primary', $colonne(CompanyResource::class), true) && !in_array('label', $colonne(CompanyResource::class), true)
+            && CustomerResource::officeTypeResource() === \Wonder\Plugin\Gestionale\Resources\Contacts\OfficeTypeResource::class
             && CustomerResource::contactPointOwner() === 'contact' && CompanyResource::contactPointOwner() === 'company';
     } finally {
         $forza(null);
@@ -382,11 +384,12 @@ check('il repeater dei referenti tiene le colonne di lavoro, anche senza «Brand
         $forza(null);
     }
 
-    // Persona e nome nuovo (12); mansione, email, prefisso, telefono di lavoro (12); aree e flag dietro «Altre opzioni».
+    // Persona e nome nuovo (12); ruolo e tipo ufficio (12); email, prefisso, telefono di lavoro (12); flag dietro «Altre opzioni».
     return ($colonne['person_id'] ?? 0) + ($colonne['new_name'] ?? 0) + ($colonne['new_surname'] ?? 0) === 12
-        && ($colonne['job_title'] ?? 0) + ($colonne['email'] ?? 0) + ($colonne['phone_prefix'] ?? 0) + ($colonne['phone'] ?? 0) === 12
+        && ($colonne['job_title'] ?? 0) + ($colonne['departments'] ?? 0) === 12
+        && ($colonne['email'] ?? 0) + ($colonne['phone_prefix'] ?? 0) + ($colonne['phone'] ?? 0) === 12
         && !isset($colonne['brand_ids'])
-        && ($colonne['departments'] ?? 0) === 12 && ($avanzate ?? []) === ['departments', 'is_primary', 'receives_documents', 'access', 'brand_ids'] && $vuoto === true;
+        && ($avanzate ?? []) === ['is_primary', 'receives_documents', 'access', 'brand_ids'] && $vuoto === true;
 });
 
 summary();

@@ -89,6 +89,12 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
     /** Il campo che dice al salvataggio che il form ha mostrato i brand degli indirizzi. */
     public const ADDRESS_BRANDS_MARKER = 'address_brands_form';
 
+    /** Il «+» accanto a «Tipo ufficio» con i permessi dell'area contatti. */
+    public static function officeTypeResource(): string
+    {
+        return OfficeTypeResource::class;
+    }
+
     /** La colonna del ruolo che questo elenco mostra. */
     public static function roleColumn(): string
     {
@@ -525,8 +531,8 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
     }
 
     /**
-     * I referenti di un'azienda: la riga chiede chi è e come si raggiunge,
-     * il resto (aree, documenti, accesso, brand) sta dietro «Altre opzioni».
+     * I referenti di un'azienda: la riga chiede chi è, di che ufficio e come
+     * si raggiunge, il resto (documenti, accesso, brand) sta dietro «Altre opzioni».
      * Parte vuoto: un'azienda senza referenti è normale.
      */
     protected static function contactPeopleField(): Input
@@ -545,18 +551,18 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
                 ->visibleWhen(ContactRelations::PERSON, ''),
             RepeaterColumn::key('new_surname')->text()->label(static::relationText('new_surname'))->columnSpan(3)
                 ->visibleWhen(ContactRelations::PERSON, ''),
-            RepeaterColumn::key('job_title')->text()->label(static::relationText('job_title'))->columnSpan(3),
-            RepeaterColumn::key('email')->email()->label('Email')->columnSpan(4),
+            RepeaterColumn::key('job_title')->text()->label(static::relationText('job_title'))->columnSpan(6),
+            static::departmentsColumn()->columnSpan(6),
+            RepeaterColumn::key('email')->email()->label('Email')->columnSpan(6),
             RepeaterColumn::key('phone_prefix')->phonePrefix()->label(static::relationText('work_phone_prefix'))->columnSpan(2),
-            RepeaterColumn::key('phone')->tel()->label('Telefono')->columnSpan(3),
-            static::departmentsColumn()->columnSpan(12),
+            RepeaterColumn::key('phone')->tel()->label('Telefono')->columnSpan(4),
             ...static::relationFlagColumns(),
             static::relationBrandsColumn(),
         ], static::relationText('add_person'))
             ->repeaterStartEmpty()
-            ->repeaterAdvanced('departments', 'is_primary', 'receives_documents', 'access', 'brand_ids')
+            ->repeaterAdvanced('is_primary', 'receives_documents', 'access', 'brand_ids')
             ->repeaterAdvancedLabel((string) __t('gestionale.contacts.form.relation_advanced'))
-            // Una scheda per referente: chiusa mostra nome e mansione.
+            // Una scheda per referente: chiusa mostra nome e ruolo.
             ->repeaterCollapsible([ContactRelations::PERSON, 'new_name', 'new_surname'], ['job_title', 'email'])
             ->repeaterCollapsibleEmptyLabel((string) __t('gestionale.contacts.form.relation_new_person'));
     }
@@ -574,14 +580,14 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
                 ContactRelations::PERSON
             ),
             RepeaterColumn::key('job_title')->text()->label(static::relationText('job_title'))->columnSpan(6),
+            static::departmentsColumn()->columnSpan(6),
             RepeaterColumn::key('email')->email()->label(static::relationText('work_email'))->columnSpan(6),
             RepeaterColumn::key('phone_prefix')->phonePrefix()->label(static::relationText('work_phone_prefix'))->columnSpan(2),
             RepeaterColumn::key('phone')->tel()->label(static::relationText('work_phone'))->columnSpan(4),
-            static::departmentsColumn()->columnSpan(12),
             ...static::relationFlagColumns(),
         ], static::relationText('add_company'))
             ->repeaterStartEmpty()
-            ->repeaterAdvanced('departments', 'is_primary', 'receives_documents', 'access')
+            ->repeaterAdvanced('is_primary', 'receives_documents', 'access')
             ->repeaterAdvancedLabel((string) __t('gestionale.contacts.form.relation_advanced'))
             ->repeaterCollapsible(ContactRelations::COMPANY, ['job_title', 'email'])
             ->repeaterCollapsibleEmptyLabel((string) __t('gestionale.contacts.form.relation_new_company'));
@@ -1084,7 +1090,7 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
 
         $labels = ContactPoints::labels() + [ContactPoints::ACCESS_LABEL => 'Email di accesso'];
 
-        return CustomerSheet::points($rows, $labels, static::isCompanySide() ? ContactRelations::departments() : []);
+        return CustomerSheet::points($rows, $labels, ContactRelations::departments());
     }
 
     /**
