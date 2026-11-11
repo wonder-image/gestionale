@@ -229,8 +229,8 @@ check('l\'avviso di sovrapposizione compare e il salvataggio riesce', function (
         $avviso = DiscountCampaignResource::overlapNotice($seconda);
         $solo = DiscountCampaignResource::overlapNotice($prima) !== '';
 
-        return str_contains($avviso, 'Prima Campagna') && $solo
-            && DiscountCampaign::find(['id' => $seconda], 1)['name'] === 'Seconda Campagna';
+        return str_contains($avviso, 'Prima campagna') && $solo
+            && DiscountCampaign::find(['id' => $seconda], 1)['name'] === 'Seconda campagna';
     });
 });
 
@@ -310,10 +310,10 @@ check('la scheda mostra dettagli, selezione, anteprima, avviso di sovrapposizion
         $seconda = salva(richiesta(['name' => 'Seconda campagna', 'discount_value' => '30', 'applies_to_all' => 'false', 'models' => [(string) $modello]]));
         $html = layoutHtml(DiscountCampaignResource::showLayoutSchema((array) DiscountCampaign::find(['id' => $seconda], 1)));
 
-        return str_contains($html, 'Seconda Campagna') && str_contains($html, '30 %')
+        return str_contains($html, 'Seconda campagna') && str_contains($html, '30 %')
             && str_contains($html, 'Solo la selezione')
             && str_contains($html, '<strong>1</strong> prodotto') && str_contains($html, 'gst_products__table')
-            && str_contains($html, 'Prima Campagna')
+            && str_contains($html, 'Prima campagna')
             && str_contains($html, 'Sito') && str_contains($html, 'Ufficio') && str_contains($html, 'Cassa')
             && $prima > 0;
     });
@@ -367,3 +367,5 @@ check('con un solo canale il salvataggio della campagna non tocca gli altri e l\
             && $dopo['applies_online'] === 'true' && $dopo['applies_office'] === 'true' && $dopo['name'] === 'Cambiata';
     });
 });
+
+summary();

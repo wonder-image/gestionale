@@ -61,3 +61,5 @@ check('l\'importo sta a destra; uno vuoto o non numerico non scrive niente', fn 
     && !str_contains(CampaignProductTableResource::priceCell('50.00', false), '<strong>')
     && CampaignProductTableResource::priceCell('', true) === ''
 );
+
+summary();
