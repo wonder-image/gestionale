@@ -75,8 +75,8 @@ check('con i referenti spenti un referente passato diventa nessuno', fn () =>
 
 ContactRelations::useEnabled(true);
 
-check('restano solo i legami vivi che ricevono i documenti, senza doppioni', fn () =>
-    array_column(DocumentReferents::options(10), 'id') === [1, 2]
+check('restano i legami vivi, senza doppioni: «Riceve i documenti» non filtra più', fn () =>
+    array_column(DocumentReferents::options(10), 'id') === [1, 2, 3]
 );
 
 check('l\'opzione porta nome, email ripulita, ruolo e principale', function () {
@@ -89,18 +89,20 @@ check('l\'opzione porta nome, email ripulita, ruolo e principale', function () {
         && $prima['is_primary'] === true;
 });
 
-check('il principale è il referente proposto', fn () => DocumentReferents::defaultFor(10) === 1);
+check('il primo della scheda è il referente proposto', fn () => DocumentReferents::defaultFor(10) === 1);
 
-check('senza principale non si propone nessuno', function () use ($righe) {
-    DocumentReferents::useReader(fn (): array => [riga(2), riga(6)]);
-    $out = DocumentReferents::defaultFor(10) === 0;
+check('il proposto non dipende da «Principale»: il primo della scheda; senza referenti nessuno', function () use ($righe) {
+    DocumentReferents::useReader(fn (): array => [riga(2), riga(6, ['is_primary' => 'true'])]);
+    $primo = DocumentReferents::defaultFor(10) === 2;
+    DocumentReferents::useReader(fn (): array => []);
+    $nessuno = DocumentReferents::defaultFor(10) === 0;
     DocumentReferents::useReader(fn (int $id): array => $id === 10 ? $righe : []);
 
-    return $out;
+    return $primo && $nessuno;
 });
 
-check('con il brand si propone il principale fra chi segue quel brand', function () use ($righe) {
-    // Il 7 segue solo il brand 4 ed è principale; l'1 è principale e li segue tutti.
+check('con il brand si propone il primo fra chi segue quel brand', function () use ($righe) {
+    // Il 7 segue solo il brand 4; l'1 li segue tutti ed è il primo della scheda.
     $perBrand = static fn (int $id, int $brand = 0): array => match ($brand) {
         4 => [riga(7, ['is_primary' => 'true']), riga(2)],
         5 => [riga(2)],
@@ -115,12 +117,12 @@ check('con il brand si propone il principale fra chi segue quel brand', function
     return $out;
 });
 
-check('se fra chi segue il brand non c\'è un principale, il principale di tutti', function () use ($righe) {
+check('se nessuno segue il brand, il primo di tutti', function () use ($righe) {
     $letti = [];
     DocumentReferents::useReader(static function (int $id, int $brand = 0) use (&$letti): array {
         $letti[] = $brand;
 
-        return $brand === 5 ? [riga(2)] : [riga(1, ['is_primary' => 'true']), riga(2)];
+        return $brand === 5 ? [] : [riga(1), riga(2, ['is_primary' => 'true'])];
     });
     $out = DocumentReferents::defaultFor(10, 5) === 1 && $letti === [5, 0];
     DocumentReferents::useReader(fn (int $id): array => $id === 10 ? $righe : []);
@@ -132,7 +134,7 @@ check('un referente valido si copia con il suo nome', fn () =>
     DocumentReferents::resolve(10, 2) === ['customer_id' => 2, 'referent_name' => 'Cognome2 Nome2']
 );
 
-check('fra le persone dell\'azienda c\'è anche chi non riceve i documenti', fn () =>
+check('fra le persone dell\'azienda c\'è anche chi aveva «Riceve i documenti» spento', fn () =>
     array_column(DocumentReferents::people(10), 'id') === [1, 2, 3]
     && DocumentReferents::resolve(10, 3) === ['customer_id' => 3, 'referent_name' => 'Cognome3 Nome3']
 );
@@ -143,23 +145,38 @@ check('un referente cancellato o di un\'altra azienda diventa nessuno', fn () =>
     && DocumentReferents::resolve(10, 0) === ['customer_id' => 0, 'referent_name' => '']
 );
 
-check('in copia vanno l\'azienda e i referenti, non chi riceve già la mail', fn () =>
+check('in copia vanno l\'azienda e il referente scelto, non chi riceve già la mail', fn () =>
     DocumentReferents::copyEmails(
-        ['company_id' => 10, 'email' => 'P2@example.com'],
+        ['company_id' => 10, 'customer_id' => 1, 'email' => 'P2@example.com'],
         ['id' => 10, 'email' => 'info@rossi.it'],
     ) === ['info@rossi.it', 'p1@example.com']
+    && DocumentReferents::copyEmails(
+        ['company_id' => 10, 'customer_id' => 2, 'email' => 'P2@example.com'],
+        ['id' => 10, 'email' => 'info@rossi.it'],
+    ) === ['info@rossi.it']
 );
 
-check('niente doppioni né indirizzi non validi in copia', fn () =>
+check('nessun referente riceve copie da solo: senza referente scelto solo l\'azienda', fn () =>
     DocumentReferents::copyEmails(
+        ['company_id' => 10, 'email' => 'x@example.com'],
+        ['id' => 10, 'email' => 'info@rossi.it'],
+    ) === ['info@rossi.it']
+    && DocumentReferents::copyEmails(
         ['company_id' => 10, 'email' => 'info@rossi.it'],
         ['id' => 10, 'email' => 'info@rossi.it'],
-    ) === ['p1@example.com', 'p2@example.com']
+    ) === []
+);
+
+check('il referente scelto riceve la copia anche se aveva «Riceve i documenti» spento', fn () =>
+    DocumentReferents::copyEmails(
+        ['company_id' => 10, 'customer_id' => 3, 'email' => 'info@rossi.it'],
+        ['id' => 10, 'email' => 'info@rossi.it'],
+    ) === ['p3@example.com']
 );
 
 check('una scheda che non è l\'azienda del documento non va in copia', fn () =>
     DocumentReferents::copyEmails(
-        ['company_id' => 10, 'email' => 'p1@example.com'],
+        ['company_id' => 10, 'customer_id' => 2, 'email' => 'p1@example.com'],
         ['id' => 3, 'email' => 'privato@example.com'],
     ) === ['p2@example.com']
 );
@@ -192,7 +209,7 @@ $aree = [
 ];
 $perArea = static function (int $id, int $brand = 0, string $area = '') use ($aree): array {
     return array_values(array_filter($aree, static fn (array $r): bool =>
-        ($area === '' || ($r['departments'] ?? []) === [] || in_array($area, $r['departments'], true))
+        ($area === '' || ($r['departments'] ?? []) === [] || in_array('general', $r['departments'], true) || in_array($area, $r['departments'], true))
         && ($brand === 0 || !isset($r['brand_ids']) || in_array($brand, $r['brand_ids'], true))));
 };
 
@@ -210,16 +227,27 @@ check('ogni documento ha la sua area, in un punto solo; un documento sconosciuto
         && $prima === 'purchasing' && $dopo === 'technical';
 });
 
-check('il preventivo va a chi si occupa degli acquisti o di tutto e riceve i documenti, il principale per primo', function () use ($perArea) {
+check('per il preventivo chi si occupa degli acquisti o di tutto, nell\'ordine della scheda', function () use ($perArea) {
     DocumentReferents::useReader($perArea);
     $ids = array_column(DocumentReferents::recipients(10, 'quote_sent'), 'id');
     $proforma = array_column(DocumentReferents::recipients(10, 'subscription.proforma'), 'id');
     $brand = array_column(DocumentReferents::recipients(10, 'quote_sent', 7), 'id');
 
-    return $ids === [1, 2, 5] && $proforma === [1, 3] && $brand === [1, 2];
+    return $ids === [1, 2, 4, 5] && $proforma === [1, 3] && $brand === [1, 2, 4];
 });
 
-check('se nessuno corrisponde all\'area vale la regola di prima: tutti quelli che ricevono i documenti', function () {
+check('un referente con ufficio «Generale» risponde per ogni area', function () use ($aree) {
+    $conGenerale = [...$aree, riga(8, ['departments' => ['general']])];
+    DocumentReferents::useReader(static fn (int $id, int $brand = 0, string $area = ''): array => array_values(array_filter(
+        $conGenerale,
+        static fn (array $r): bool => \Wonder\Plugin\CustomerAccount\Support\ContactRelations::coversDepartment($r['departments'] ?? [], $area)
+    )));
+
+    return array_column(DocumentReferents::recipients(10, 'subscription.proforma'), 'id') === [1, 3, 8]
+        && array_column(DocumentReferents::recipients(10, 'quote_sent'), 'id') === [1, 2, 4, 5, 8];
+});
+
+check('se nessuno corrisponde all\'area: tutti i referenti', function () {
     // Nessuno si occupa della direzione né di tutto: l'area non trova nessuno.
     $soloAree = [riga(2, ['departments' => ['purchasing']]), riga(3, ['departments' => ['administration']]), riga(6, ['receives_documents' => 'false', 'is_primary' => 'true'])];
     DocumentReferents::useReader(static fn (int $id, int $brand = 0, string $area = ''): array => array_values(array_filter(
@@ -231,32 +259,27 @@ check('se nessuno corrisponde all\'area vale la regola di prima: tutti quelli ch
     DocumentReferents::useArea('quote_sent', 'purchasing');
     $nessunaArea = array_column(DocumentReferents::recipients(10, 'order.whatever'), 'id');
 
-    return $ripiego === [2, 3] && $nessunaArea === [2, 3];
+    return $ripiego === [2, 3, 6] && $nessunaArea === [2, 3, 6];
 });
 
-check('un\'azienda che non compila le aree non cambia: tutti quelli che ricevono i documenti', function () use ($righe) {
+check('un\'azienda che non compila le aree: tutti i referenti', function () use ($righe) {
     DocumentReferents::useReader(fn (int $id): array => $id === 10 ? $righe : []);
 
-    return array_column(DocumentReferents::recipients(10, 'quote_sent'), 'id') === [1, 2]
-        && array_column(DocumentReferents::recipients(10, 'subscription.reminder'), 'id') === [1, 2];
+    return array_column(DocumentReferents::recipients(10, 'quote_sent'), 'id') === [1, 2, 3]
+        && array_column(DocumentReferents::recipients(10, 'subscription.reminder'), 'id') === [1, 2, 3];
 });
 
-check('in copia l\'area del documento e il brand dell\'ordine, solo le email principali', function () use ($perArea) {
+check('in copia area e brand non aggiungono referenti: solo quello scelto sul documento', function () use ($perArea) {
     DocumentReferents::useReader($perArea);
     $funzionalita = new ReflectionProperty(Gestionale::class, 'features');
     $ordine = ['company_id' => 10, 'email' => 'info@rossi.it', 'company_brand_id' => 9];
     $funzionalita->setValue(null, ['companies' => true, 'brands' => true]);
-    $preventivo = DocumentReferents::copyEmails(['company_brand_id' => 7] + $ordine, ['id' => 10, 'email' => 'info@rossi.it'], 'quote_sent');
-    $conBrand = DocumentReferents::copyEmails($ordine, ['id' => 10, 'email' => 'info@rossi.it'], 'quote_sent');
-    // Senza «Brand» i brand seguiti non contano: il 5 segue il brand 9 e basta.
-    $funzionalita->setValue(null, ['companies' => true]);
-    $senzaBrand = DocumentReferents::copyEmails(['company_brand_id' => 7] + $ordine, ['id' => 10, 'email' => 'info@rossi.it'], 'quote_sent');
+    $preventivo = DocumentReferents::copyEmails($ordine, ['id' => 10, 'email' => 'info@rossi.it'], 'quote_sent');
+    $scelto = DocumentReferents::copyEmails(['customer_id' => 3] + $ordine, ['id' => 10, 'email' => 'info@rossi.it'], 'quote_sent');
     $funzionalita->setValue(null, null);
-    $proforma = DocumentReferents::copyEmails(['company_id' => 10, 'email' => 'info@rossi.it'], ['id' => 10, 'email' => 'info@rossi.it'], 'subscription.proforma');
+    $proforma = DocumentReferents::copyEmails(['company_id' => 10, 'customer_id' => 2, 'email' => 'info@rossi.it'], ['id' => 10, 'email' => 'info@rossi.it'], 'subscription.proforma');
 
-    return $preventivo === ['p1@example.com', 'p2@example.com'] && $proforma === ['p1@example.com', 'p3@example.com']
-        && in_array('p5@example.com', $conBrand, true) && in_array('p5@example.com', $senzaBrand, true)
-        && !in_array('p5@example.com', $preventivo, true);
+    return $preventivo === [] && $scelto === ['p3@example.com'] && $proforma === ['p2@example.com'];
 });
 
 check('senza mansione il ruolo sono le aree di cui si occupa', function () use ($perArea) {
@@ -301,17 +324,18 @@ check('le email dell\'azienda: quelle dell\'area del documento, altrimenti la pr
         && $chieste === ['administration', 'purchasing', 'purchasing'];
 });
 
-check('in copia caselle dell\'azienda e referenti, senza doppioni né chi riceve già', function () use ($perArea) {
+check('in copia caselle dell\'azienda e referente scelto, senza doppioni né chi riceve già', function () use ($perArea) {
     DocumentReferents::useReader(static fn (int $id, int $brand = 0, string $area = ''): array => [
         riga(1, ['contact_email' => 'acquisti@rossi.it']),
         riga(2, ['contact_email' => 'luca@rossi.it']),
     ]);
     DocumentReferents::useCompanyReader(static fn (): array => ['acquisti@rossi.it', 'info@rossi.it']);
-    $copie = DocumentReferents::copyEmails(['company_id' => 10, 'email' => 'info@rossi.it'], ['id' => 10, 'email' => 'info@rossi.it'], 'quote_sent');
+    $copie = DocumentReferents::copyEmails(['company_id' => 10, 'customer_id' => 2, 'email' => 'info@rossi.it'], ['id' => 10, 'email' => 'info@rossi.it'], 'quote_sent');
+    $stessa = DocumentReferents::copyEmails(['company_id' => 10, 'customer_id' => 1, 'email' => 'info@rossi.it'], ['id' => 10, 'email' => 'info@rossi.it'], 'quote_sent');
     DocumentReferents::useCompanyReader(null);
     DocumentReferents::useReader(null);
 
-    return $copie === ['acquisti@rossi.it', 'luca@rossi.it'];
+    return $copie === ['acquisti@rossi.it', 'luca@rossi.it'] && $stessa === ['acquisti@rossi.it'];
 });
 
 check('l\'email di un referente per l\'azienda; vuota per chi non è suo referente', function () {

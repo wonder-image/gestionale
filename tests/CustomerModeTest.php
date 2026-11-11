@@ -272,7 +272,7 @@ check('form di creazione: recapiti, legami, fatturazione e consegna nello stesso
         && $cliente['is_customer'] === 'true' && $referente['is_customer'] === 'false' && $cliente['name'] === 'Marta';
 });
 
-check('indirizzi: di consegna per le persone, di consegna e ritiro dove si sceglie il ruolo, di ritiro sul fornitore senza ruolo; la sezione non si nasconde al fornitore', function () use ($modo, $forza) {
+check('indirizzi: di consegna per le persone, di consegna/ritiro dove si sceglie il ruolo, di ritiro sul fornitore senza ruolo; la sezione non si nasconde al fornitore', function () use ($modo, $forza) {
     try {
         $modo(CustomerMode::BOTH);
         $conRuolo = [CustomerResource::addressesTitle(), CompanyResource::addressesTitle(), SupplierResource::addressesTitle()];
@@ -286,7 +286,7 @@ check('indirizzi: di consegna per le persone, di consegna e ritiro dove si scegl
 
     $sorgente = (string) file_get_contents(__DIR__.'/../src/Resources/Contacts/CustomerResource.php');
 
-    return $conRuolo === ['Indirizzi di consegna', 'Indirizzi di consegna e ritiro', 'Indirizzi di consegna e ritiro']
+    return $conRuolo === ['Indirizzi di consegna', 'Indirizzi di consegna/ritiro', 'Indirizzi di consegna/ritiro']
         && $senzaRuolo === 'Indirizzi di ritiro'
         && $senzaAcquisti === 'Indirizzi di consegna'
         && !str_contains($sorgente, "hiddenWhen('roles', 'supplier')");

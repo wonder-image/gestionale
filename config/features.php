@@ -41,6 +41,13 @@ return [
         'area' => 'Anagrafiche',
         'requires' => ['brands'],
     ],
+    // Il CRM delle schede (`Support\Contacts\Crm`, interruttore `Crm` di customer-account).
+    'crm' => [
+        'name' => 'CRM',
+        'description' => 'Più recapiti per persone, aziende, brand e referenti, ognuno con il suo tipo (email, telefono fisso, cellulare, WhatsApp), e i social di brand e persone. Spenta, si vedono un\'email e un telefono soli: i recapiti in più e i social restano salvati.',
+        'area' => 'Anagrafiche',
+        'default_if' => [\Wonder\Plugin\Gestionale\Support\Contacts\Crm::class, 'inUse'],
+    ],
     // La capogruppo delle aziende (`companies.parent_id`, `HasCompanyGroup`).
     'company_groups' => [
         'name' => 'Gruppi di aziende',

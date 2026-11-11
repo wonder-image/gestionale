@@ -173,7 +173,7 @@ final class ContactTools
     /**
      * Tutti i contatti della scheda (`ContactPoints::all()`), i principali
      * per primi: `is_primary`, `label` (`access` = l'email con cui la persona
-     * entra nel sito), `departments` (i tipi ufficio, vuota = tutto) e
+     * entra nel sito), `kind` (`email`, `phone`, `mobile`, `whatsapp`), `departments` (gli uffici, vuota = tutto) e
      * `departments_label`, da leggere. Solo
      * per leggerli: si scrive alle email che dicono `contact_email` dei
      * referenti e le aree, mai a una a caso.

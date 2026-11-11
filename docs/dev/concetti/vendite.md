@@ -290,18 +290,19 @@ Tutto passa da `Support\Contacts\DocumentReferents`:
 
 - `people($companyId)` legge `ContactRelations::peopleOf()` e tiene i legami
   vivi con la persona viva: fra questi si sceglie il referente;
-- `options($companyId)` tiene in più solo chi ha `receives_documents`: sono le
-  copie delle email;
-- `defaultFor($companyId, $brandId = 0)` propone il principale (`is_primary`),
-  altrimenti nessuno; con il brand prima il principale fra chi segue quel brand
-  (`ContactRelations::peopleOf($companyId, $brandId)`), poi quello di tutti;
+- `options($companyId)` è uguale a `people()`: `receives_documents` non
+  filtra più (nei form non si sceglie; resta salvato sul legame);
+- `defaultFor($companyId, $brandId = 0)` propone il primo referente della
+  scheda, altrimenti nessuno; con il brand il primo fra chi segue quel brand
+  (`ContactRelations::peopleOf($companyId, $brandId)`), poi il primo di tutti.
+  `is_primary` non conta;
 - `resolve($companyId, $personId)` controlla la persona scelta contro le
   opzioni e dà `customer_id` e `referent_name`. Un id che non è fra le opzioni
   diventa `0` / `''`;
-- `recipients($companyId, $document, $brandId)` dà chi riceve un documento:
-  `ContactRelations::peopleFor($companyId, area($document), $brandId)` con
-  `receives_documents`, il principale per primo; se nessuno corrisponde, tutti
-  quelli che ricevono i documenti (la regola di prima delle aree);
+- `recipients($companyId, $document, $brandId)` dà i referenti per un
+  documento: `ContactRelations::peopleFor($companyId, area($document), $brandId)`
+  (chi ha l'area, nessuna area o l'ufficio «Generale»), nell'ordine della
+  scheda; se nessuno corrisponde, tutti i referenti. Non decide più le copie;
 - `AREAS` è l'unica mappa documento → area (`quote_sent`, `office_confirmed`,
   `delivery_note_sent` → `purchasing`; `subscription.proforma`, `.reminder`,
   `.payment_failed` → `administration`; il resto: nessuna area). Un modulo la
@@ -312,13 +313,14 @@ Tutto passa da `Support\Contacts\DocumentReferents`:
   nessuna, la principale per prima); vuota o illeggibile → la principale della
   scheda (`$company['email']`), come prima delle aree;
 - `copyEmails($order, $company, $document)` dà gli indirizzi in copia, senza
-  doppioni e senza quelli che ricevono già la mail: `companyEmails()` e le
-  email dei `recipients()`. L'email di un referente è `contact_email` delle
+  doppioni e senza quelli che ricevono già la mail: `companyEmails()` e
+  l'email del referente scelto sul documento (`customer_id`, `emailOf()`).
+  Nessun altro referente riceve copie da solo. L'email di un referente è `contact_email` delle
   righe di `peopleFor()` (di lavoro se c'è, altrimenti la principale della
   persona); `fromRows()` dà anche `phone` (di lavoro, o quello della persona).
   `OrderNotifier` passa la chiave dell'email; `SubscriptionNotifier` scrive
   alla prima di `companyEmails()` (o al referente, `emailOf()`) e copia il
-  resto con `subscription.` + la sua chiave;
+  resto (le altre email dell'azienda e il referente dell'abbonamento) con `subscription.` + la sua chiave;
 - `emailOf($companyId, $personId)`: l'email per l'azienda di un suo referente
   (anche l'email proposta dall'ordine quando l'azienda non ne ha una);
 - `useReader()` e `useCompanyReader()` servono solo ai test.
@@ -346,8 +348,8 @@ recapiti, `relationCards()`, fatturazione, consegna, `Accordion` «Altri dati»
   (`form.points_company` / `form.points_person`) e usa
   `contactBoxByKindFields()` di customer-account: un elenco per le email e uno
   per i telefoni, senza la tendina del tipo e senza «Principale»; ogni riga ha
-  il recapito e «Tipo ufficio», per aziende, fornitori e persone;
-- «Tipo ufficio» è lo stesso select a scelta multipla sui recapiti e sui
+  il recapito e «Ufficio», per aziende, fornitori e persone;
+- «Ufficio» è lo stesso select a scelta multipla sui recapiti e sui
   referenti (`ContactRelations::departments()`: tipi di serie più quelli di
   `contact_office_types`). Il «+» crea un tipo con
   `Resources\Contacts\OfficeTypeResource` (path `app/gestionale/tipi-ufficio`,
@@ -355,7 +357,7 @@ recapiti, `relationCards()`, fatturazione, consegna, `Accordion` «Altri dati»
   passa al trait; non ha voce di menu e non si elimina;
 - `contactPeopleField()` e `contactCompaniesField()` sono ridefiniti qui: una
   scheda richiudibile per riga (`repeaterCollapsible()`: nome, poi ruolo ed
-  email), ordinabile dalla maniglia, con scheda, ruolo, tipo ufficio, email e
+  email), ordinabile dalla maniglia, con scheda, ruolo, ufficio, email e
   telefono di lavoro in vista e il resto dietro
   `repeaterAdvanced()` con l'etichetta `form.relation_advanced`; i repeater di
   referenti e brand usano `repeaterStartEmpty()`. Le chiavi postate sono le

@@ -172,26 +172,21 @@ class CompanyResource extends CustomerResource
             return static::allBrandFields();
         }
 
-        $yesNo = ['false' => (string) __t('contacts.no'), 'true' => (string) __t('contacts.yes')];
-
+        // Come il campo di customer-account: il predefinito non si sceglie nel form.
         return [
             FormField::key(static::$brandsInput)
                 ->repeater([
                     RepeaterColumn::key('brand_id')
-                        ->selectSearch(['' => 'Nessuno'] + ContactVisibility::options(CompanyBrand::$table, CompanyBrands::options(), ContactVisibility::rememberedBrands()))
+                        ->selectSearch(['' => (string) __t('contacts.option_none')] + ContactVisibility::options(CompanyBrand::$table, CompanyBrands::options(), ContactVisibility::rememberedBrands()))
                         ->quickCreate(static::brandResource(), ['name'], null, 'name', (string) __t('contacts.brand_add'))
+                        ->attribute('data-ca-company-brand')
                         ->label((string) __t('contacts.brand'))
-                        ->columnSpan(6),
+                        ->columnSpan(8),
                     RepeaterColumn::key('role')
                         ->select(CompanyBrands::roles())
                         ->value(CompanyBrandLink::ROLE_OWNER)
                         ->label((string) __t('contacts.brand_role'))
-                        ->columnSpan(3),
-                    RepeaterColumn::key('is_default')
-                        ->select($yesNo)
-                        ->value('false')
-                        ->label((string) __t('contacts.brand_is_default'))
-                        ->columnSpan(3),
+                        ->columnSpan(4),
                 ])
                 ->nested()
                 ->repeaterSortable()

@@ -47,6 +47,8 @@ if (!function_exists('__t')) {
 
 $forza = static function (?array $stato): void {
     (new ReflectionProperty(Gestionale::class, 'features'))->setValue(null, $stato);
+    // Il CRM di customer-account resta acceso finché non lo si spegne: ogni test riparte da spento.
+    \Wonder\Plugin\CustomerAccount\Support\Crm::enable(false);
 };
 
 /** Le chiavi del form di una Resource. @return list<string> */
@@ -124,32 +126,46 @@ check('i brand non vanno al salvataggio della riga dell\'indirizzo', function ()
 
 // --- Altri contatti ---
 
-check('persone, aziende e fornitori hanno il riquadro «Contatti» al posto di email, prefisso, telefono e «Altri contatti»', function () use ($chiavi, $forza) {
-    $forza(['private_customers' => true, 'companies' => true, 'purchasing' => true]);
+check('con il CRM il riquadro «Contatti» è uno solo, una riga per recapito; «Ufficio» singolo solo per le aziende', function () use ($chiavi, $forza) {
+    $forza(['private_customers' => true, 'companies' => true, 'purchasing' => true, 'crm' => true]);
 
     try {
         foreach ([CustomerResource::class, CompanyResource::class, SupplierResource::class] as $resource) {
             $campi = $chiavi($resource);
 
-            if (array_diff(['contact_points_email', 'contact_points_phone', 'contact_box_form'], $campi) !== [] || in_array('contact_points', $campi, true)
-                || array_intersect(['email', 'phone_prefix', 'phone', 'contact_points_form'], $campi) !== []) {
+            if (array_diff(['contact_points', 'contact_box_form'], $campi) !== []
+                || array_intersect(['contact_points_email', 'contact_points_phone', 'phone_prefix', 'phone', 'contact_points_form'], $campi) !== []) {
                 return false;
             }
         }
 
-        // «Tipo ufficio» sulle righe dei contatti di aziende e persone, senza «Principale».
         $colonne = static function (string $resource): array {
             foreach ($resource::formSchema() as $campo) {
-                if ($campo->name === 'contact_points_email') {
+                if ($campo->name === 'contact_points') {
                     return array_map(static fn ($c): string => $c->name, (array) $campo->get('context')['columns']);
                 }
             }
 
             return [];
         };
+        $ufficio = null;
 
-        return in_array('departments', $colonne(CompanyResource::class), true) && in_array('departments', $colonne(CustomerResource::class), true)
-            && !in_array('is_primary', $colonne(CompanyResource::class), true) && !in_array('label', $colonne(CompanyResource::class), true)
+        foreach (CompanyResource::formSchema() as $campo) {
+            foreach ($campo->name === 'contact_points' ? (array) $campo->get('context')['columns'] : [] as $colonna) {
+                $ufficio = $colonna->name === 'department' ? $colonna : $ufficio;
+            }
+        }
+
+        $azienda = $colonne(CompanyResource::class);
+        $persona = $colonne(CustomerResource::class);
+
+        // L'email di una persona è quella di accesso, in un campo a parte; l'azienda la tiene nel riquadro.
+        return in_array('email', $chiavi(CustomerResource::class), true) && !in_array('email', $chiavi(CompanyResource::class), true)
+            && array_intersect(['kind', 'email', 'phone_prefix', 'phone', 'department'], $azienda) === ['kind', 'email', 'phone_prefix', 'phone', 'department']
+            && in_array('kind', $persona, true) && !in_array('department', $persona, true)
+            && array_intersect(['departments', 'is_primary', 'label'], [...$azienda, ...$persona]) === []
+            // Un ufficio solo, con la ricerca e il «+».
+            && $ufficio !== null && ($ufficio->get('context')['multiple'] ?? false) !== true && $ufficio->get('label') === 'Ufficio'
             && CustomerResource::officeTypeResource() === \Wonder\Plugin\Gestionale\Resources\Contacts\OfficeTypeResource::class
             && CustomerResource::contactPointOwner() === 'contact' && CompanyResource::contactPointOwner() === 'company';
     } finally {
@@ -157,22 +173,104 @@ check('persone, aziende e fornitori hanno il riquadro «Contatti» al posto di e
     }
 });
 
-check('dal riquadro il principale va nei campi della scheda, il resto e il marker no; una riga sbagliata ferma', function () {
-    $valori = CustomerResource::mutateRequestValues(['name' => 'Mario', 'contact_box_form' => '1', 'contact_points' => [
-        ['kind' => 'phone', 'phone_prefix' => '+39', 'phone' => '333 1234567', 'is_primary' => 'false'],
-    ]], 'store');
+check('senza CRM un\'email e un telefono soli, niente social; con il CRM i social solo per le persone', function () use ($chiavi, $forza) {
+    $forza(['private_customers' => true, 'companies' => true, 'purchasing' => true]);
 
     try {
-        CustomerResource::mutateRequestValues(['name' => 'Mario', 'contact_box_form' => '1', 'contact_points' => [
-            ['kind' => 'email', 'email' => 'non-email', 'is_primary' => 'true'],
-        ]], 'store');
-        $fermato = false;
-    } catch (InvalidArgumentException) {
-        $fermato = true;
+        foreach ([CustomerResource::class, CompanyResource::class, SupplierResource::class] as $resource) {
+            $campi = $chiavi($resource);
+
+            if (array_diff(['email', 'phone_prefix', 'phone', 'contact_box_form'], $campi) !== []
+                || array_intersect(['contact_points', 'socials', 'socials_form'], $campi) !== []) {
+                return false;
+            }
+        }
+
+        $forza(['private_customers' => true, 'companies' => true, 'crm' => true]);
+
+        return array_diff(['socials', 'socials_form'], $chiavi(CustomerResource::class)) === []
+            && array_intersect(['socials', 'socials_form'], $chiavi(CompanyResource::class)) === [];
+    } finally {
+        $forza(null);
+    }
+});
+
+check('i social di una persona si salvano solo con il CRM; spento la colonna resta com\'è', function () use ($forza) {
+    $post = ['name' => 'Mario', 'socials_form' => '1', 'socials' => [['network' => 'instagram', 'url' => 'https://instagram.com/mario']]];
+    $forza(['private_customers' => true, 'companies' => true]);
+
+    try {
+        $spento = CustomerResource::mutateRequestValues($post, 'store');
+        $forza(['private_customers' => true, 'companies' => true, 'crm' => true]);
+        $acceso = CustomerResource::mutateRequestValues($post, 'store');
+        $senzaForm = CustomerResource::mutateRequestValues(['name' => 'Mario'], 'store');
+        $azienda = CompanyResource::mutateRequestValues(['business_name' => 'Rossi Srl'] + $post, 'store');
+
+        try {
+            CustomerResource::mutateRequestValues(['name' => 'Mario', 'socials_form' => '1', 'socials' => [['network' => 'instagram', 'url' => 'javascript:alert(1)']]], 'store');
+            $fermato = false;
+        } catch (InvalidArgumentException) {
+            $fermato = true;
+        }
+    } finally {
+        $forza(null);
     }
 
-    return ($valori['phone'] ?? '') === '3331234567' && ($valori['phone_prefix'] ?? '') === '+39' && ($valori['email'] ?? null) === ''
-        && !array_key_exists('contact_points', $valori) && !array_key_exists('contact_box_form', $valori) && $fermato;
+    return !array_key_exists('socials', $spento) && !array_key_exists('socials_form', $spento)
+        && str_contains((string) ($acceso['socials'] ?? ''), 'instagram.com/mario') && !array_key_exists('socials_form', $acceso)
+        && !array_key_exists('socials', $senzaForm) && !array_key_exists('socials', $azienda) && $fermato;
+});
+
+check('dal riquadro il principale va nei campi della scheda, il resto e il marker no; una riga sbagliata ferma', function () use ($forza) {
+    $forza(['private_customers' => true, 'companies' => true, 'crm' => true]);
+
+    try {
+        $valori = CustomerResource::mutateRequestValues(['name' => 'Mario', 'email' => 'mario@example.com', 'contact_box_form' => '1', 'contact_points' => [
+            ['kind' => 'phone', 'phone_prefix' => '+39', 'phone' => '333 1234567', 'is_primary' => 'false'],
+        ]], 'store');
+        $azienda = CompanyResource::mutateRequestValues(['business_name' => 'Rossi Srl', 'contact_box_form' => '1', 'contact_points' => [
+            ['kind' => 'email', 'email' => 'Info@Rossi.it', 'department' => 'administration'],
+            ['kind' => 'email', 'email' => 'acquisti@rossi.it', 'department' => 'purchasing'],
+        ]], 'store');
+
+        try {
+            CompanyResource::mutateRequestValues(['business_name' => 'Rossi Srl', 'contact_box_form' => '1', 'contact_points' => [
+                ['kind' => 'email', 'email' => 'non-email', 'is_primary' => 'true'],
+            ]], 'store');
+            $fermato = false;
+        } catch (InvalidArgumentException) {
+            $fermato = true;
+        }
+    } finally {
+        $forza(null);
+    }
+
+    // L'email di accesso della persona arriva dal suo campo e resta fra i valori; quella dell'azienda è la prima riga.
+    return ($valori['phone'] ?? '') === '3331234567' && ($valori['phone_prefix'] ?? '') === '+39' && ($valori['email'] ?? null) === 'mario@example.com'
+        && !array_key_exists('contact_points', $valori) && !array_key_exists('contact_box_form', $valori)
+        && ($azienda['email'] ?? '') === 'info@rossi.it' && !array_key_exists('contact_points', $azienda) && $fermato;
+});
+
+check('senza CRM email e telefono del form vanno nei campi della scheda; il marker no', function () use ($forza) {
+    $forza(['private_customers' => true, 'companies' => true]);
+
+    try {
+        $azienda = CompanyResource::mutateRequestValues(['business_name' => 'Rossi Srl', 'contact_box_form' => 'single', 'email' => 'Info@Rossi.it', 'phone_prefix' => '+39', 'phone' => '02 1234567'], 'store');
+        // L'email di accesso, dal suo campo, si pulisce come un contatto: minuscola, senza spazi, formato giusto.
+        $persona = CustomerResource::mutateRequestValues(['name' => 'Mario', 'contact_box_form' => 'single', 'email' => ' Mario@Example.com ', 'phone_prefix' => '+39', 'phone' => '333 1234567'], 'store');
+
+        try {
+            CustomerResource::mutateRequestValues(['name' => 'Mario', 'contact_box_form' => 'single', 'email' => 'non-email', 'phone_prefix' => '+39', 'phone' => ''], 'store');
+            $fermato = false;
+        } catch (InvalidArgumentException) {
+            $fermato = true;
+        }
+    } finally {
+        $forza(null);
+    }
+
+    return $fermato && ($azienda['email'] ?? '') === 'info@rossi.it' && ($azienda['phone'] ?? '') === '021234567' && !array_key_exists('contact_box_form', $azienda)
+        && ($persona['email'] ?? '') === 'mario@example.com' && ($persona['phone'] ?? '') === '3331234567' && !array_key_exists('contact_box_form', $persona);
 });
 
 check('senza riquadro (creazione rapida, finestre, API) i campi singoli passano come prima', function () {
@@ -240,13 +338,74 @@ check('il brand del gestionale eredita logo, sito, domini email e descrizione', 
 
 check('«Brand kit» nel pannello: Anagrafiche, spenta di serie, richiede «Brand»; accesa mostra il kit', function () use ($forza, $chiavi) {
     $voce = FeatureCatalog::all()['brand_kit'] ?? [];
+    // Senza CRM il kit ha un'email e un telefono soli e nessun social.
     $forza(['companies' => true, 'brands' => true, 'brand_kit' => true]);
+    $senzaCrm = $chiavi(CompanyBrandResource::class);
+    $forza(['companies' => true, 'brands' => true, 'brand_kit' => true, 'crm' => true]);
     $conKit = $chiavi(CompanyBrandResource::class);
+    $ufficio = CompanyBrandResource::officeTypeResource();
     $forza(null);
+    // Il gestionale accende il CRM di customer-account e non lo spegne: qui si rimette com'era.
+    \Wonder\Plugin\CustomerAccount\Support\Crm::enable(false);
+    \Wonder\Plugin\CustomerAccount\Support\CompanyBrands::useKit(false);
 
     return ($voce['area'] ?? '') === 'Anagrafiche' && ($voce['default'] ?? true) === false
         && ($voce['requires'] ?? []) === ['brands']
-        && in_array('socials', $conKit, true) && in_array('colors', $conKit, true);
+        && in_array('socials', $conKit, true) && in_array('contacts', $conKit, true) && in_array('colors', $conKit, true) && !in_array('email', $conKit, true)
+        && !in_array('socials', $senzaCrm, true) && !in_array('contacts', $senzaCrm, true) && in_array('colors', $senzaCrm, true)
+        && array_values(array_intersect(['email', 'phone_prefix', 'phone'], $senzaCrm)) === ['email', 'phone_prefix', 'phone']
+        && $ufficio === \Wonder\Plugin\Gestionale\Resources\Contacts\OfficeTypeResource::class;
+});
+
+check('scheda del brand: il riquadro «Indirizzi» solo in modifica, senza «Presso» né «Aggiungi»; in creazione non c\'è', function () use ($forza, $chiavi) {
+    $forza(['companies' => true, 'brands' => true]);
+    $prima = $_SERVER['REQUEST_URI'] ?? null;
+    $_SERVER['REQUEST_URI'] = '/backend/app/gestionale/brand/';
+    $crea = $chiavi(CompanyBrandResource::class);
+    $carteCrea = count(CompanyBrandResource::formLayoutSchema()->components);
+    $_SERVER['REQUEST_URI'] = '/backend/app/gestionale/brand/7/?modify=7';
+    $modifica = $chiavi(CompanyBrandResource::class);
+    $colonne = [];
+    $aggiungi = null;
+
+    foreach (CompanyBrandResource::formSchema() as $campo) {
+        if ($campo->name === CompanyBrandResource::ADDRESSES_INPUT) {
+            $contesto = $campo->get('context');
+            $colonne = array_map(static fn ($colonna): string => (string) $colonna->name, $contesto['columns'] ?? []);
+            $aggiungi = $contesto;
+        }
+    }
+
+    // Senza database il brand non ha aziende: il riquadro c'è, con la frase al posto delle righe.
+    $carte = CompanyBrandResource::formLayoutSchema()->components;
+    $tema = \Wonder\App\Theme::get();
+    \Wonder\App\Theme::set('bootstrap');
+    $html = \Wonder\Backend\Support\ResourceFormLayoutRenderer::renderLayout($carte[1]);
+    \Wonder\App\Theme::set($tema);
+    $valori = CompanyBrandResource::mutateFormValues(['id' => 7, 'name' => 'La Piana'], 'edit');
+    // In creazione, e senza il segnaposto, il salvataggio non tocca gli indirizzi.
+    $creato = CompanyBrandResource::syncRepeaterRelations(8, [CompanyBrandResource::ADDRESSES_MARKER => '1', CompanyBrandResource::ADDRESSES_INPUT => [['id' => 1, 'label' => 'x']]], [], 'store');
+    $senzaSegno = CompanyBrandResource::syncRepeaterRelations(7, [CompanyBrandResource::ADDRESSES_INPUT => [['id' => 1, 'label' => 'x']]], [], 'update');
+    $conSegno = CompanyBrandResource::syncRepeaterRelations(7, [CompanyBrandResource::ADDRESSES_MARKER => '1', CompanyBrandResource::ADDRESSES_INPUT => [['id' => 1, 'label' => 'x']]], [], 'update');
+
+    if ($prima === null) {
+        unset($_SERVER['REQUEST_URI']);
+    } else {
+        $_SERVER['REQUEST_URI'] = $prima;
+    }
+
+    $forza(null);
+
+    return !in_array(CompanyBrandResource::ADDRESSES_INPUT, $crea, true) && !in_array(CompanyBrandResource::ADDRESSES_MARKER, $crea, true) && $carteCrea === 1
+        && in_array(CompanyBrandResource::ADDRESSES_INPUT, $modifica, true) && in_array(CompanyBrandResource::ADDRESSES_MARKER, $modifica, true)
+        && $colonne === ['id', 'company_name', 'scope', 'label', 'street', 'number', 'country', 'province', 'city', 'cap', 'place_id', 'lat', 'lng']
+        && ($aggiungi['nested'] ?? false) === true && ($aggiungi['add_button'] ?? true) === false
+        && count($carte) === 2
+        && str_contains($html, 'Indirizzi') && str_contains($html, 'si aggiungono dalla scheda dell') && !str_contains($html, 'brand_addresses[')
+        && !str_contains($html, '—') && !str_contains($html, '<wi-card')
+        && $valori[CompanyBrandResource::ADDRESSES_INPUT] === []
+        && !isset($creato[CompanyBrandResource::ADDRESSES_INPUT]) && !isset($senzaSegno[CompanyBrandResource::ADDRESSES_INPUT])
+        && $conSegno[CompanyBrandResource::ADDRESSES_INPUT] === ['updated' => []];
 });
 
 check('il logo del brand: URL solo http(s) o del sito, tutto escapato', function () {
@@ -307,11 +466,15 @@ $card = static function (string $resource, string $titolo): array {
 };
 
 check('la card dei recapiti ha il riquadro, il marker e lo script; la fatturazione place ID e coordinate nascosti', function () use ($card, $forza) {
-    $forza(['private_customers' => true, 'companies' => true]);
+    $nomi = static fn (array $componenti): array => array_values(array_filter(array_map(static fn ($c): string => $c instanceof \Wonder\App\ResourceSchema\Input ? $c->name : '', $componenti)));
+    $larghezze = static fn (array $componenti): int => array_sum(array_map(static fn ($c): int => $c instanceof \Wonder\App\ResourceSchema\Input && !in_array($c->name, ['contact_box_form', 'place_id', 'lat', 'lng', 'more'], true) ? (int) ($c->columnSpan['default'] ?? 0) : 0, $componenti));
+    $forza(['private_customers' => true, 'companies' => true, 'crm' => true]);
 
     try {
-        $nomi = static fn (array $componenti): array => array_values(array_filter(array_map(static fn ($c): string => $c instanceof \Wonder\App\ResourceSchema\Input ? $c->name : '', $componenti)));
         $contatti = $card(CompanyResource::class, (string) __t('gestionale.contacts.form.points_company'));
+        $contattiPersona = $card(CustomerResource::class, (string) __t('gestionale.contacts.form.points_person'));
+        $social = $card(CustomerResource::class, (string) __t('contacts.person_socials'));
+        $socialAzienda = $card(CompanyResource::class, (string) __t('contacts.person_socials'));
         $fatturazione = $card(CompanyResource::class, 'Dati di fatturazione');
         $persona = $card(CustomerResource::class, 'Dati di fatturazione');
         $via = static function (array $componenti): string {
@@ -324,14 +487,50 @@ check('la card dei recapiti ha il riquadro, il marker e lo script; la fatturazio
             return '';
         };
         $script = array_values(array_map(static fn ($c): string => (string) (new ReflectionProperty($c, 'text'))->getValue($c), array_filter($contatti, static fn ($c): bool => $c instanceof \Wonder\Elements\Components\RichText)));
+
+        $forza(['private_customers' => true, 'companies' => true]);
+        $semplice = $card(CompanyResource::class, (string) __t('gestionale.contacts.form.points_company'));
+        $semplicePersona = $card(CustomerResource::class, (string) __t('gestionale.contacts.form.points_person'));
+        $senzaSocial = $card(CustomerResource::class, (string) __t('contacts.person_socials'));
     } finally {
         $forza(null);
     }
 
-    return $nomi($contatti) === ['contact_points_email', 'contact_points_phone', 'contact_box_form'] && $script !== [] && str_contains($script[0], 'caContactForm')
+    return $nomi($contatti) === ['contact_points', 'contact_box_form'] && $script !== [] && str_contains($script[0], 'caContactForm')
+        // La persona ha l'«Email di accesso» sopra il riquadro; i social in una card loro, solo per lei.
+        && $nomi($contattiPersona) === ['email', 'contact_points', 'contact_box_form']
+        && $nomi($social) === ['socials', 'socials_form'] && $socialAzienda === [] && $senzaSocial === []
+        // Senza CRM email, prefisso e telefono su una riga.
+        && $nomi($semplice) === ['email', 'phone_prefix', 'phone', 'contact_box_form'] && $larghezze($semplice) === 12
+        && $nomi($semplicePersona) === ['email', 'phone_prefix', 'phone', 'contact_box_form'] && $larghezze($semplicePersona) === 12
+        // Le righe della fatturazione riempiono la griglia: azienda 12 + 12 + 12, persona 12 + 12.
+        && $larghezze($fatturazione) === 36 && $larghezze($persona) === 24
         && array_slice($nomi($fatturazione), -3) === ['place_id', 'lat', 'lng'] && array_slice($nomi($persona), -3) === ['place_id', 'lat', 'lng']
         && str_contains($via($fatturazione), 'data-wi-place-names') && str_contains($via($fatturazione), 'data-ca-place-name="business_name"')
         && !str_contains($via($persona), 'data-ca-place-name');
+});
+
+check('l\'«Email di accesso» della persona: modificabile senza account, bloccata con; l\'aiuto è nel titolo', function () use ($card, $forza) {
+    $forza(['private_customers' => true, 'companies' => true, 'crm' => true]);
+
+    try {
+        $componenti = $card(CustomerResource::class, (string) __t('gestionale.contacts.form.points_person'));
+        $email = null;
+
+        foreach ($componenti as $c) {
+            $email = $c instanceof \Wonder\App\ResourceSchema\Input && $c->name === 'email' ? $c : $email;
+        }
+
+        $aiuto = (string) ($componenti[0]->getSchema()['tooltip'] ?? '');
+        $libera = CustomerResource::mutateRequestValues(['name' => 'Mario', 'email' => 'nuova@example.com', 'contact_box_form' => '1', 'contact_points' => []], 'store', 'backend', ['id' => 0, 'email' => 'mario@example.com', 'name' => 'Mario', 'is_customer' => 'true']);
+    } finally {
+        $forza(null);
+    }
+
+    return $email !== null && $email->get('label') === (string) __t('contacts.point_label_access')
+        && !str_contains((string) $email->get('attribute'), 'readonly')
+        && str_contains($aiuto, (string) __t('contacts.access_email_help'))
+        && ($libera['email'] ?? '') === 'nuova@example.com';
 });
 
 check('place ID e coordinate della fatturazione si ripuliscono, e solo se arrivano', function () {
@@ -344,52 +543,114 @@ check('place ID e coordinate della fatturazione si ripuliscono, e solo se arriva
         && !array_key_exists('lat', $senza);
 });
 
-check('le finestre dell\'ordine restano con i campi singoli; la fatturazione porta place ID e coordinate', function () use ($forza) {
-    $forza(['private_customers' => true, 'companies' => true]);
-
-    try {
-        // La scheda non ha più il campo `email`: la finestra se lo fa da sé (disegnarla vuole il sito avviato).
-        CustomerResource::getInput('email');
-        $campoEmail = true;
-    } catch (RuntimeException) {
-        $campoEmail = false;
-    } finally {
-        $forza(null);
-    }
-
+check('le finestre dell\'ordine restano con i campi singoli; la fatturazione porta place ID e coordinate', function () {
+    // La finestra ha il suo campo `email`, non quello «Email di accesso» della scheda (disegnarla vuole il sito avviato).
     $codice = (string) file_get_contents(__DIR__.'/../src/Support/Sales/OfficeCustomerPanel.php');
 
-    return !$campoEmail && str_contains($codice, "FormField::key('email')->email()")
+    return str_contains($codice, "FormField::key('email')->email()")
         && str_contains($codice, "\$campo('place_id', 12)") && str_contains($codice, "\$azienda('place_id', 12)")
         && in_array('place_id', OfficeCustomerPanel::BILLING_KEYS, true) && in_array('lng', OfficeCustomerPanel::COMPANY_BILLING_KEYS, true);
 });
 
-check('il repeater dei referenti tiene le colonne di lavoro, anche senza «Brand»', function () use ($forza) {
+/** Le colonne (nome => larghezza) e il contesto di un repeater dei legami. @return array{0: array<string, int>, 1: array<string, mixed>, 2: list<string>} */
+$legami = static function (string $resource, string $input): array {
+    $colonne = [];
+    $contesto = [];
+    $campi = [];
+
+    foreach ($resource::contactRelationFields() as $campo) {
+        $campi[] = (string) $campo->name;
+
+        if ($campo->name === $input) {
+            $contesto = (array) $campo->get('context');
+
+            foreach ((array) ($contesto['columns'] ?? []) as $colonna) {
+                $colonne[$colonna->name] = (int) ($colonna->columnSpan['default'] ?? 0);
+            }
+        }
+    }
+
+    return [$colonne, $contesto, $campi];
+};
+
+check('la riga del referente: persona, ruolo e ufficio insieme, poi i contatti aziendali; niente persona nuova né opzioni', function () use ($forza, $legami) {
     $forza(['private_customers' => true, 'companies' => true]);
 
     try {
-        $colonne = [];
-
-        foreach (CompanyResource::contactRelationFields() as $campo) {
-            foreach ((array) ($campo->get('context')['columns'] ?? []) as $colonna) {
-                $colonne[$colonna->name] = (int) ($colonna->columnSpan['default'] ?? 0);
-            }
-
-            if ($campo->name === CompanyResource::RELATION_PEOPLE) {
-                $avanzate = $campo->get('context')['advanced'] ?? [];
-                $vuoto = $campo->get('context')['start_empty'] ?? null;
-            }
-        }
+        [$colonne, $contesto] = $legami(CompanyResource::class, CompanyResource::RELATION_PEOPLE);
+        [$aziende] = $legami(CustomerResource::class, CustomerResource::RELATION_COMPANIES);
+        $forza(['private_customers' => true, 'companies' => true, 'crm' => true]);
+        [$conCrm] = $legami(CompanyResource::class, CompanyResource::RELATION_PEOPLE);
+        [$aziendeCrm] = $legami(CustomerResource::class, CustomerResource::RELATION_COMPANIES);
     } finally {
         $forza(null);
     }
 
-    // Persona e nome nuovo (12); ruolo e tipo ufficio (12); email, prefisso, telefono di lavoro (12); flag dietro «Altre opzioni».
-    return ($colonne['person_id'] ?? 0) + ($colonne['new_name'] ?? 0) + ($colonne['new_surname'] ?? 0) === 12
-        && ($colonne['job_title'] ?? 0) + ($colonne['departments'] ?? 0) === 12
-        && ($colonne['email'] ?? 0) + ($colonne['phone_prefix'] ?? 0) + ($colonne['phone'] ?? 0) === 12
-        && !isset($colonne['brand_ids'])
-        && ($avanzate ?? []) === ['is_primary', 'receives_documents', 'access', 'brand_ids'] && $vuoto === true;
+    $tolte = ['new_name', 'new_surname', 'new_email', 'is_primary', 'receives_documents', 'access', 'departments'];
+
+    return ($colonne['person_id'] ?? 0) + ($colonne['job_title'] ?? 0) + ($colonne['department'] ?? 0) === 12
+        && ($aziende['company_id'] ?? 0) + ($aziende['job_title'] ?? 0) + ($aziende['department'] ?? 0) === 12
+        // Senza CRM un'email e un telefono su una riga; con, il repeater dei «Contatti aziendali».
+        && ($colonne['email'] ?? 0) + ($colonne['phone_prefix'] ?? 0) + ($colonne['phone'] ?? 0) === 12 && !isset($colonne['points'])
+        && ($conCrm['points'] ?? 0) === 12 && !isset($conCrm['email']) && !isset($conCrm['phone'])
+        && ($aziendeCrm['points'] ?? 0) === 12 && !isset($aziendeCrm['email'])
+        && array_intersect($tolte, [...array_keys($colonne), ...array_keys($conCrm), ...array_keys($aziende), ...array_keys($aziendeCrm)]) === []
+        && !isset($colonne['brand_ids']) && !isset($aziende['brand_ids'])
+        && ($contesto['advanced'] ?? []) === [] && ($contesto['start_empty'] ?? null) === true;
+});
+
+check('i «Brand seguiti» del referente: solo con «Brand», visibili se l\'azienda ha più di un brand', function () use ($forza, $legami) {
+    $forza(['private_customers' => true, 'companies' => true, 'brands' => true]);
+
+    try {
+        [$colonne, $contesto, $campi] = $legami(CompanyResource::class, CompanyResource::RELATION_PEOPLE);
+        [, , $persona] = $legami(CustomerResource::class, CustomerResource::RELATION_COMPANIES);
+        $brand = null;
+
+        foreach ((array) ($contesto['columns'] ?? []) as $colonna) {
+            $brand = $colonna->name === 'brand_ids' ? $colonna : $brand;
+        }
+
+        $forza(['private_customers' => true, 'companies' => true]);
+        [$senza] = $legami(CompanyResource::class, CompanyResource::RELATION_PEOPLE);
+    } finally {
+        $forza(null);
+    }
+
+    $quando = $brand !== null ? json_encode($brand->get('context')).' '.(string) $brand->get('attribute') : '';
+
+    return ($colonne['brand_ids'] ?? 0) === 12 && !isset($senza['brand_ids'])
+        && in_array(CompanyResource::RELATION_BRANDS_MANY, $campi, true) && !in_array(CompanyResource::RELATION_BRANDS_MANY, $persona, true)
+        && str_contains($quando, CompanyResource::RELATION_BRANDS_MANY);
+});
+
+check('una riga di referente senza persona: vuota si scarta, compilata ferma il salvataggio', function () use ($forza) {
+    $forza(['private_customers' => true, 'companies' => true]);
+    $prima = $_POST;
+    $salva = static function (array $riga): string {
+        $_POST = ['business_name' => 'Rossi Srl', 'contact_relations_form' => '1', 'contact_people' => [$riga]];
+
+        try {
+            CompanyResource::mutateRequestValues($_POST, 'store');
+        } catch (InvalidArgumentException $e) {
+            return $e->getMessage();
+        }
+
+        return '';
+    };
+
+    try {
+        $vuota = $salva(['person_id' => '', 'job_title' => '', 'department' => 'general', 'email' => '', 'phone_prefix' => '+39', 'phone' => '']);
+        $compilata = $salva(['person_id' => '', 'job_title' => 'Titolare', 'department' => 'general']);
+        // Con il CRM la riga appena aggiunta posta anche un recapito con i soli valori di partenza.
+        $forza(['private_customers' => true, 'companies' => true, 'crm' => true]);
+        $vuotaCrm = $salva(['person_id' => '', 'job_title' => '', 'department' => 'general', 'points' => [['kind' => 'email', 'email' => '', 'phone_prefix' => '+39', 'phone' => '']]]);
+    } finally {
+        $_POST = $prima;
+        $forza(null);
+    }
+
+    return $vuota === '' && $vuotaCrm === '' && $compilata === (string) __t('contacts.relation_person_required');
 });
 
 summary();

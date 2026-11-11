@@ -132,13 +132,13 @@ stanno nel riquadro dei contatti della scheda (**Recapiti dell'azienda** per
 aziende e fornitori, **Email e telefoni** per le persone), divisi per tipo:
 prima le **Email**, poi i **Telefoni**, ognuno con il suo *Aggiungi*. Una riga
 ha il recapito (l'email, oppure prefisso e numero: il prefisso parte da quello
-del paese del sito) e il **Tipo ufficio**: uno o più fra *Amministrazione*,
+del paese del sito) e l'**Ufficio**: uno o più fra *Generale*, *Amministrazione*,
 *Acquisti*, *Commerciale*, *Tecnico*, *Direzione*, *Altro* e quelli che hai
 creato tu. Vuoto vuol dire che il recapito vale per tutto. Così
 *amministrazione@* riceve proforma e solleciti anche senza creare un referente
 (vedi sotto).
 
-Per **creare un tipo ufficio** nuovo (per esempio *Marketing*) premi il **+**
+Per **creare un ufficio** nuovo (per esempio *Marketing*) premi il **+**
 accanto al campo, scrivi il nome e conferma: il tipo si seleziona nella riga e
 da quel momento lo trovi in tutte le schede, sui recapiti e sui referenti. Un
 nome che esiste già riprende quel tipo, senza doppioni. I tipi creati si
@@ -161,7 +161,7 @@ scheda pure (se la scheda non è fra le tue, senza dire di chi è).
   contatti.
 
 La scheda in lettura mostra tutti i contatti, con il principale, l'email di
-accesso e i tipi ufficio. Le finestre *Contatti* dell'ordine da ufficio cambiano solo
+accesso e gli uffici. Le finestre *Contatti* dell'ordine da ufficio cambiano solo
 email e telefono principali.
 
 ## Dati di fatturazione
@@ -308,7 +308,7 @@ lavora. La stessa persona può essere referente di più aziende ed è sempre
 
 Ogni referente è una **scheda richiudibile**: chiusa mostra il nome, il ruolo
 e l'email; un clic sul titolo la apre. Aperta mostra quello che serve di
-solito: la persona, il **Ruolo**, il **Tipo ufficio**, l'email e il telefono
+solito: la persona, il **Ruolo**, l'**Ufficio**, l'email e il telefono
 di lavoro. Referente principale, documenti in copia, accesso all'area clienti
 e brand seguiti stanno in **Altre opzioni**, chiuse finché non servono. Le
 schede si riordinano trascinandole dai **puntini** a sinistra del titolo e si
@@ -327,18 +327,17 @@ o la stessa **partita IVA** si seleziona quella che c'è, senza doppioni. Il
 referente nuovo non è né cliente né fornitore; l'azienda nuova è cliente.
 Funziona anche quando crei un cliente o un'azienda nuovi. Poi:
 
-- **Tipo ufficio**: lo stesso campo dei recapiti: uno o più fra
-  *Amministrazione*, *Acquisti*, *Commerciale*, *Tecnico*, *Direzione*, *Altro*
-  e quelli creati da te con il **+**; vuoto vuol dire che si occupa di tutto.
-  Dice a chi mandare i documenti (vedi sotto);
+- **Ufficio**: lo stesso campo dei recapiti: *Generale*, *Amministrazione*,
+  *Acquisti*, *Commerciale*, *Tecnico*, *Direzione*, *Altro* e quelli creati
+  da te con il **+**; vuoto o *Generale* vuol dire che si occupa di tutto;
 - **Brand seguiti** — con la funzionalità *Brand*, i brand dell'azienda di cui
   si occupa; vuoto = tutti;
 - **Ruolo**: scritto a mano, per esempio *Responsabile acquisti*;
-  se manca, sui documenti e nelle tendine compaiono i suoi tipi ufficio;
-- **Referente principale** — è il referente proposto quando fai un preventivo,
-  un ordine da ufficio o un DDT per quell'azienda;
-- **Riceve i documenti** — chi ha questa risposta riceve in copia le email dei
-  documenti. Sui documenti si può scegliere qualsiasi referente;
+  se manca, sui documenti e nelle tendine compare il suo ufficio;
+- quando fai un preventivo, un ordine da ufficio o un DDT per quell'azienda è
+  proposto il **primo referente** della scheda (con un brand, il primo fra chi
+  lo segue): trascina le righe per cambiare l'ordine. Sui documenti si può
+  scegliere qualsiasi referente;
 - **Email di lavoro**, **Prefisso**, **Telefono di lavoro** — i contatti del
   referente per quell'azienda (facoltativi). Se c'è l'email di lavoro i
   documenti di quell'azienda vanno lì e non alla sua email personale; la
@@ -348,11 +347,9 @@ Funziona anche quando crei un cliente o un'azienda nuovi. Poi:
 
 Ogni documento ha la sua area: **preventivo, conferma dell'ordine e DDT** vanno
 a chi si occupa degli **Acquisti**; **proforma, solleciti e pagamenti non
-riusciti degli abbonamenti** a chi si occupa dell'**Amministrazione**. In copia
-va chi **riceve i documenti** e si occupa di quell'area (o di tutto) e segue il
-brand del documento (o tutti), il principale per primo. Se nessuno corrisponde,
-vale la regola di sempre: tutti quelli che ricevono i documenti. Così
-un'azienda per cui non compili le aree non vede cambiare niente.
+riusciti degli abbonamenti** a chi si occupa dell'**Amministrazione**. Dei
+referenti riceve la copia solo quello **scelto sul documento**: nessun altro
+la riceve da solo.
 
 Dell'azienda ricevono le email del suo riquadro *Contatti* che si occupano di
 quell'area (o di tutto); se nessuna corrisponde, la sua email principale, come
@@ -360,12 +357,11 @@ prima. Nessuno riceve lo stesso documento due volte.
 
 - **Preventivo, conferma, DDT**: destinatario l'email del documento (di solito
   quella dell'azienda); in copia le email dell'azienda per gli *Acquisti* (o la
-  principale) e i referenti degli *Acquisti* che ricevono i documenti, all'email
-  di lavoro se ce l'hanno.
+  principale) e il referente del documento, all'email di lavoro se ce l'ha.
 - **Proforma, solleciti e pagamenti non riusciti degli abbonamenti**:
   destinatario la prima email dell'azienda per l'*Amministrazione* (o la
   principale; senza, il referente); in copia le altre email per
-  l'*Amministrazione* e i referenti dell'*Amministrazione*.
+  l'*Amministrazione* e il referente dell'abbonamento.
 
 Le copie vanno all'email del referente **per quell'azienda** (di lavoro, se
 c'è, altrimenti la sua principale): gli altri contatti della persona non

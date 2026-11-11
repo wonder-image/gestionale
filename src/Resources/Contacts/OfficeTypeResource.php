@@ -8,7 +8,7 @@ use Wonder\Plugin\Gestionale\Gestionale;
 
 /**
  * I tipi ufficio nel gestionale: stessa scheda di customer-account, con i
- * permessi dell'area contatti, così il «+» accanto a «Tipo ufficio» compare
+ * permessi dell'area contatti, così il «+» accanto a «Ufficio» compare
  * a chi gestisce le anagrafiche.
  */
 class OfficeTypeResource extends BaseOfficeTypeResource
