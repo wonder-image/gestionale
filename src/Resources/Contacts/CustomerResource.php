@@ -1802,21 +1802,21 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
         return FormField::key('addresses')
             ->repeater([
                 RepeaterColumn::key('id')->hidden(),
-                RepeaterColumn::key('label')->text()->label('Etichetta')->columnSpan(4),
-                RepeaterColumn::key('name')->text()->label('Nome')->columnSpan(4),
-                RepeaterColumn::key('surname')->text()->label('Cognome')->columnSpan(4),
+                RepeaterColumn::key('label')->text()->label('Etichetta')->columnSpan(3),
+                RepeaterColumn::key('name')->text()->label('Nome')->columnSpan(3),
+                RepeaterColumn::key('surname')->text()->label('Cognome')->columnSpan(3),
                 // La riga la ricava places.js dal nome della via: il prefisso dichiarato vale per tutte.
                 // Si cerca anche per nome dell'attività.
                 RepeaterColumn::key('street')->text()->label('Indirizzo o attività')
-                    ->attribute('data-wi-place="addresses[][" data-wi-place-names')->columnSpan(8),
+                    ->attribute('data-wi-place="addresses[][" data-wi-place-names')->columnSpan(5),
                 RepeaterColumn::key('number')->text()->label('Civico')->columnSpan(2),
                 RepeaterColumn::key('is_default')
                     ->select(['false' => 'No', 'true' => 'Sì'])
                     ->label('Predefinito')
                     ->columnSpan(2),
-                RepeaterColumn::key('country')->country('province')->value('IT')->label('Paese')->columnSpan(3),
-                RepeaterColumn::key('province')->states('IT')->label('Provincia')->columnSpan(3),
-                RepeaterColumn::key('city')->text()->label('Città')->columnSpan(4),
+                RepeaterColumn::key('country')->country('province')->value('IT')->label('Paese')->columnSpan(2),
+                RepeaterColumn::key('province')->states('IT')->label('Provincia')->columnSpan(2),
+                RepeaterColumn::key('city')->text()->label('Città')->columnSpan(3),
                 RepeaterColumn::key('cap')->text()->label('CAP')->columnSpan(2),
                 // Place ID e coordinate li scrive Google: nascosti, ripuliti in `prepareRepeaterRelationRow()`.
                 RepeaterColumn::key('place_id')->hidden(),
