@@ -34,6 +34,21 @@ versionamento semantico.
   ruolo `warehouse` e alle sedi dell'azienda dal pannello ordine.
 
 ### Aggiunto
+- **Funzionalità «CRM» (`crm`, spenta di serie).** Accesa: più recapiti per
+  persone, aziende, brand e referenti, ognuno con il «Tipo» (Email, Telefono
+  fisso, Cellulare, WhatsApp) e, per aziende, brand e referenti, l'«Ufficio»;
+  i social di brand e persone. Spenta: un'email e un telefono soli, niente
+  social; i recapiti in più e i social già salvati restano. Recapiti e social
+  del brand seguono il CRM anche con «Brand kit» spenta
+  (`Support\Contacts\Crm`, `BrandData::CRM_FIELDS` di customer-account).
+  Tabelle e migrazione stanno in customer-account
+  (`CrmContactPointsMigration`).
+- **Scheda del brand: gli indirizzi applicati dalle aziende.** In modifica il
+  brand mostra gli indirizzi che le aziende hanno fatto valere per lui e li
+  lascia correggere (nome, via, numero, CAP, città, provincia, paese). Non se
+  ne aggiungono né tolgono da lì; azienda e «Vale per» si leggono soltanto
+  (`CompanyBrandResource::addressesField()`,
+  `CompanyAddresses::updateFromBrand()`).
 - **Novità di customer-account (riquadro dei contatti, contatti di lavoro,
   indirizzi per nome) nel gestionale:**
   - **Riquadro «Contatti»** su persone, aziende e fornitori al posto di email,
@@ -222,6 +237,7 @@ versionamento semantico.
   (`RowVisibility` vieta `deleted` nelle regole; serve un aiuto del core).
 
 ### Cambiato
+- **Anagrafiche: «Ufficio» singolo, referenti su una riga, email di accesso a parte.** Rispetto alle voci qui sotto: «Tipo ufficio» si chiama «Ufficio» ed è una scelta singola ovunque, con il «+» per crearne uno e «Generale» come prima voce (vale per tutto). La riga del referente ha Persona, Ruolo e Ufficio su una riga e sotto i «Contatti aziendali»; chiusa mostra nome, ruolo e ufficio. Non ci sono più «Altre opzioni», «Referente principale», «Riceve i documenti», «Accesso all'area clienti» e la «Nuova persona» con Nome e Cognome nella riga: la persona nuova si crea con il «+»; una riga compilata senza persona ferma il salvataggio. Un referente nuovo nasce con accesso «Ordina» (con «Nessuno» se chi lo aggiunge non può dare l'accesso), uno salvato tiene il suo. «Brand seguiti» si vede solo se l'azienda ha più di un brand. Nei brand dell'azienda non c'è più «Predefinito»: resta quello di prima, altrimenti vale il primo. Nelle aziende di una persona la tendina mostra solo la ragione sociale. Per una persona l'email di accesso sta in un campo a parte, fuori dall'elenco dei contatti nel form; nella scheda in lettura resta nell'elenco, come principale. «Indirizzi di consegna e ritiro» diventa «Indirizzi di consegna/ritiro» e «Presso» esce dal form degli indirizzi della scheda (il valore salvato resta; c'è ancora nella finestra dell'indirizzo singolo, `ContactAddressResource`). Il riquadro dei recapiti torna uno solo: con il CRM una riga per recapito con il «Tipo», senza un'email e un telefono.
 - **Anagrafiche: «Tipo ufficio» unico su recapiti e referenti, e si creano tipi nuovi.** Al posto dell'etichetta dei recapiti e di «Si occupa di» c'è un solo campo, «Tipo ufficio», a scelta multipla, su email e telefoni di aziende, fornitori e persone e sui referenti (in riga, non più in «Altre opzioni»). Il «+» accanto crea un tipo nuovo che vale ovunque (`Resources\Contacts\OfficeTypeResource`, path `app/gestionale/tipi-ufficio`, permessi dell'area contatti; i tipi si rinominano, non si eliminano). Sui recapiti non si sceglie più «Principale»: resta quello che lo era, altrimenti la prima riga. «Mansione» diventa «Ruolo». La scheda in lettura mostra i tipi ufficio anche per le persone; l'MCP (`customer_get`) aggiunge `departments_label` ai `contact_points`. Tabelle e migrazione stanno in customer-account (`contact_office_types`, `contact_point_departments`, `PointOfficeTypesMigration`: l'etichetta «Fatturazione» diventa il tipo «Amministrazione»): serve `php forge update`.
 - **Anagrafiche: recapiti divisi per tipo, referenti e aziende a scheda.** Il riquadro dei recapiti ha un elenco per le email e uno per i telefoni, ognuno con il suo «Aggiungi», senza la tendina «Tipo». Ogni referente (e ogni azienda di una persona) è una scheda richiudibile che chiusa mostra nome, ruolo ed email; si riordina trascinandola dalla maniglia e si toglie con il cestino, al posto dei bottoni su, giù ed elimina (Repeater di `wonder-image/app`).
 - **Form delle anagrafiche: spiegazioni nel tooltip.** Nel form di aziende, persone e fornitori la spiegazione di ogni sezione sta nel tooltip accanto al titolo (`SectionTitle::tooltip()`) e non più in una riga sotto, al contrario di quanto dice la voce qui sotto. «Altri dati» non ha più la frase di descrizione (`form.other_help*` tolte) e gli indirizzi partono senza una riga vuota, come brand e referenti.

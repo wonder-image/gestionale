@@ -244,7 +244,7 @@ dopo 24 ore si chiude da solo.
 
 Dall'elenco *Abbonamenti*, **Nuovo abbonamento**: scegli il cliente — una
 persona, oppure un'**Azienda** con, se vuoi, il suo referente in **Cliente /
-referente** (vuoto: il referente principale) — e, con
+referente** (vuoto: il primo referente della scheda) — e, con
 **«Aggiungi servizio»**, una riga per servizio: piano e prezzo, quantità e, per
 un servizio legato, la riga a cui **si appoggia** (contando dall'alto). Le
 personalizzazioni stanno nelle informazioni avanzate della riga, ognuna coi

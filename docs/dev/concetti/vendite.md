@@ -325,11 +325,12 @@ Tutto passa da `Support\Contacts\DocumentReferents`:
   (anche l'email proposta dall'ordine quando l'azienda non ne ha una);
 - `useReader()` e `useCompanyReader()` servono solo ai test.
 
-Ogni riga di `people()` / `options()` porta anche `departments` (i tipi
-ufficio, vuota = tutti: le chiavi di serie o l'id di un tipo creato, come
-testo) e `role`: il ruolo (`job_title`), o le etichette dei tipi
-(`areasLabel()`) se il ruolo è vuoto. Le tendine dei referenti mostrano
-`role`.
+Ogni riga di `people()` / `options()` porta anche `departments` (gli uffici,
+vuota = tutti: le chiavi di serie o l'id di un ufficio creato, come testo) e
+`role`: il ruolo (`job_title`), o le etichette degli uffici (`areasLabel()`)
+se il ruolo è vuoto. Le tendine dei referenti mostrano `role`. I form
+scrivono un ufficio solo (`department`, vedi sotto): `departments` resta una
+lista per le righe salvate prima e per chi scrive da codice.
 
 ### Layout del form delle anagrafiche
 
@@ -345,23 +346,27 @@ recapiti, `relationCards()`, fatturazione, consegna, `Accordion` «Altri dati»
   descrizione;
 - brand, referenti e indirizzi partono senza righe (`repeaterStartEmpty()`);
 - la card dei recapiti si chiama «Recapiti dell'azienda» o «Email e telefoni»
-  (`form.points_company` / `form.points_person`) e usa
-  `contactBoxByKindFields()` di customer-account: un elenco per le email e uno
-  per i telefoni, senza la tendina del tipo e senza «Principale»; ogni riga ha
-  il recapito e «Ufficio», per aziende, fornitori e persone;
-- «Ufficio» è lo stesso select a scelta multipla sui recapiti e sui
-  referenti (`ContactRelations::departments()`: tipi di serie più quelli di
-  `contact_office_types`). Il «+» crea un tipo con
+  (`form.points_company` / `form.points_person`) e la disegna
+  `contactsCard()` con `contactBoxFields()` di customer-account. Con il CRM
+  (vedi sotto) è un riquadro solo, una riga per recapito con il «Tipo»; senza,
+  `email`, `phone_prefix` e `phone` su una riga. Non c'è «Principale»: vale la
+  prima riga di ogni famiglia. `contactBoxByKindFields()` del trait non si usa
+  più qui;
+- «Ufficio» è lo stesso select singolo sui recapiti delle aziende
+  (`contactBoxOffice()`: le persone non l'hanno) e sui referenti
+  (`ContactRelations::departments()`: uffici di serie, «Generale» per primo,
+  più quelli di `contact_office_types`). Il «+» ne crea uno con
   `Resources\Contacts\OfficeTypeResource` (path `app/gestionale/tipi-ufficio`,
   permessi dell'area contatti), che `CustomerResource::officeTypeResource()`
   passa al trait; non ha voce di menu e non si elimina;
 - `contactPeopleField()` e `contactCompaniesField()` sono ridefiniti qui: una
-  scheda richiudibile per riga (`repeaterCollapsible()`: nome, poi ruolo ed
-  email), ordinabile dalla maniglia, con scheda, ruolo, ufficio, email e
-  telefono di lavoro in vista e il resto dietro
-  `repeaterAdvanced()` con l'etichetta `form.relation_advanced`; i repeater di
-  referenti e brand usano `repeaterStartEmpty()`. Le chiavi postate sono le
-  stesse del trait;
+  scheda richiudibile per riga (`repeaterCollapsible()`: nome, poi ruolo e
+  ufficio), ordinabile dalla maniglia, vuota all'inizio
+  (`repeaterStartEmpty()`), con il titolo `form.relation_new_person` /
+  `form.relation_new_company` finché la riga non ha una scheda. La riga ha
+  persona (o azienda), ruolo e ufficio, poi i contatti aziendali. Non c'è più
+  `repeaterAdvanced()`: principale, documenti in copia e accesso non sono nel
+  form. Le chiavi postate sono quelle del trait;
 - gli indirizzi restano anche per il fornitore, che li usa per il ritiro:
   `addressesKind()` sceglie titolo, aiuto e frase vuota (`addresses` con il
   campo ruoli, altrimenti `delivery`; `SupplierResource` risponde `pickup`) e
@@ -402,8 +407,13 @@ mostrano `ContactPoints::all()` (`CustomerResource::pointItems()`,
 `CustomerSheet::points()`): principale, «Email di accesso», etichette e aree.
 
 Il repeater dei referenti ha le colonne di lavoro del trait
-(`workContactColumns()`: email 6, prefisso 2, telefono 4, una riga sua); il
-filtro dei brand toglie solo `brand_ids`. Ovunque si scrive o si mostra
+(`workContactColumns()`): con il CRM il repeater interno `points` («Contatti
+aziendali», una riga per recapito con il tipo), senza `email`, `phone_prefix`
+e `phone`. «Brand seguiti» (`brand_ids`) c'è solo dal lato dell'azienda e
+solo se ha più di un brand (`RELATION_BRANDS_MANY`); il filtro dei brand
+toglie solo `brand_ids`. Una riga senza scheda ma con qualcosa di scritto
+ferma il salvataggio (`assertRelationContacts()`), una vuota si scarta: il
+form non crea più persone dalla riga, c'è il «+». Ovunque si scrive o si mostra
 l'email di un referente per un'azienda si usa `contact_email` (scheda
 dell'azienda, `DocumentReferents`, email proposta dall'ordine, MCP).
 
@@ -412,13 +422,53 @@ Indirizzi: la fatturazione di persone e aziende (`withGeo()`,
 nascosti nel layout (e nelle finestre dell'ordine, `BILLING_KEYS`), ripuliti
 con `GoogleMaps::cleanGeo()` solo se arrivano; sulla via delle aziende
 `data-ca-place-name="business_name"`. Il repeater degli indirizzi e la
-finestra di `ContactAddressResource` hanno «Presso» (`business_name`, anche per
-le sedi d'azienda), la ricerca per nome (`data-wi-place-names`,
-`data-ca-place-name`) e place ID e coordinate (nel repeater colonne nascoste,
-ripulite in `prepareRepeaterRelationRow()`). Place ID e coordinate arrivano dal
+finestra di `ContactAddressResource` hanno la ricerca per nome
+(`data-wi-place-names`, `data-ca-place-name`) e place ID e coordinate (nel
+repeater colonne nascoste, ripulite in `prepareRepeaterRelationRow()`).
+«Presso» (`business_name`) è rimasto solo nella finestra: il repeater non lo
+mostra più, la colonna resta e una riga salvata senza la chiave tiene il suo
+valore. Place ID e coordinate arrivano dal
 browser e non decidono niente. L'ordine copia dalla sede `shipping_place_id`,
 `shipping_lat`, `shipping_lng` (`shippingKeys()`); la fatturazione dell'ordine
 non ha colonne geo e non ne prende.
+
+### Recapiti, uffici e social con il CRM
+
+Lo stato si legge da `Support\Contacts\Crm` (vedi
+[Funzionalità](funzionalita.md)); i pezzi sono di customer-account:
+
+- `ContactPoints`: i tipi di un recapito sono `email`, `phone` (fisso),
+  `mobile` e `whatsapp` (`kinds()`, `kindOptions()`, `kindLabel()`). Le
+  famiglie sono due, email e telefono (`family()`, `isPhone()`,
+  `PHONE_KINDS`): il principale è il primo di ogni famiglia e il tipo del
+  telefono principale sta nella colonna `phone_kind` della scheda. Senza CRM
+  `syncAll()` scrive con `primary_only`: i recapiti in più restano salvati;
+- ufficio singolo: i form postano `department` (una chiave di serie o l'id di
+  un ufficio creato), sia sui recapiti sia sui referenti.
+  `ContactRelations::GENERAL` («Generale») è la prima voce e vale per tutte
+  le aree; `firstDepartment()` dà il valore del select da una lista salvata.
+  Le letture portano `department` accanto a `departments`. Sui recapiti di un
+  brand l'ufficio sta in `label`;
+- email di accesso: per una persona `separateAccessEmail()` la tiene in un
+  campo a parte, fuori dal riquadro (`formRowsWithoutAccess()`, `syncAll()`
+  con `separate_email`). In lettura `ContactPoints::all()` la dà ancora per
+  prima, come principale;
+- `Support\Socials`: le reti (`NETWORKS`, `networks()`, `add()` per
+  aggiungerne una), la pulizia (`clean()`, `column()`) e le letture (`of()`,
+  `formRows()`). Li usano il brand e la persona (`contacts.socials`, trait
+  `HasSocials`: card «Social» da `socialCards()`, solo con il CRM);
+- `BrandData::CRM_FIELDS` (`contacts`, `socials`): i campi del brand che
+  seguono il CRM anche con `brand_kit` spenta. `BrandData::clean($values,
+  $kit, $stored, $primaryOnly, $crm)` li lascia passare con `$crm`; con il
+  kit e senza CRM tiene un'email e un telefono (`$primaryOnly`).
+
+Il form del brand (`Contacts\CompanyBrandResource`) in modifica ha anche la
+card degli indirizzi che le aziende hanno applicato a quel brand
+(`ADDRESSES_INPUT` `brand_addresses`, marker `brand_addresses_form`,
+`CompanyAddresses::forBrand()` sulle aziende che chi scrive vede). Le righe
+si correggono, non si aggiungono né si tolgono; azienda e «Vale per» sono in
+sola lettura. Controlla `CompanyAddresses::brandProblems()`, scrive
+`updateFromBrand()` e solo i campi di `BRAND_FIELDS`.
 
 ### Il brand
 
@@ -469,8 +519,9 @@ script della pagina ricostruisce la tendina `company_brand_id` proponendo il
 predefinito. In modifica `OfficeOrderPage::brandOptions($companyId, $values)`
 aggiunge il brand salvato se l'azienda non l'ha più, «(non più dell'azienda)».
 La card *Brand* del form azienda è `CompanyResource::brandCards()`, hook di
-`CustomerResource`, con il repeater di customer-account (brand, ruolo,
-predefinito); la Resource che crea il brand al volo è
+`CustomerResource`, con il repeater di customer-account (brand e ruolo: il
+predefinito non si sceglie più nel form, `CompanyBrands::chooseDefault()`
+tiene quello di prima se c'è ancora, altrimenti vale il primo); la Resource che crea il brand al volo è
 `Contacts\CompanyBrandResource`, la stessa di customer-account su
 `app/gestionale/brand` con i permessi dell'area contatti e la voce
 *Anagrafiche → Brand*.
