@@ -257,8 +257,8 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
                 ->required(),
             FormField::key('note')->textarea()->label('Note'),
             static::addressesField(),
-            // Il riquadro «Contatti» di customer-account: tutte le email e i telefoni, con il principale.
-            ...static::contactBoxFields(),
+            // Il riquadro «Contatti» di customer-account, diviso per tipo: un elenco per le email e uno per i telefoni.
+            ...static::contactBoxByKindFields(),
             ...(static::addressBrandsShown() ? [FormField::key(self::ADDRESS_BRANDS_MARKER)->hidden()->value('1')] : []),
         ];
 
@@ -440,8 +440,11 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
                     $testo($azienda ? 'points_company' : 'points_person'),
                     $azienda ? (static::relationsShown() ? 'points_company_help' : 'points_company_alone_help') : 'points_person_help'
                 ),
-                // Il titolo è già quello della card: niente secondo titolo sopra le righe.
-                static::getInput(static::$pointsInput)->label('')->columnSpan(12),
+                // Email e telefoni fianco a fianco, ognuno con il suo «Aggiungi».
+                ...array_map(
+                    static fn (string $key): Input => static::getInput($key)->columnSpan(6),
+                    array_values(static::pointKindInputs())
+                ),
                 static::getInput(static::$boxMarker)->columnSpan(12),
                 // Lo script del riquadro e della ricerca per nome negli indirizzi (customer-account).
                 static::contactFormScript(),
@@ -551,7 +554,10 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
         ], static::relationText('add_person'))
             ->repeaterStartEmpty()
             ->repeaterAdvanced('departments', 'is_primary', 'receives_documents', 'access', 'brand_ids')
-            ->repeaterAdvancedLabel((string) __t('gestionale.contacts.form.relation_advanced'));
+            ->repeaterAdvancedLabel((string) __t('gestionale.contacts.form.relation_advanced'))
+            // Una scheda per referente: chiusa mostra nome e mansione.
+            ->repeaterCollapsible([ContactRelations::PERSON, 'new_name', 'new_surname'], ['job_title', 'email'])
+            ->repeaterCollapsibleEmptyLabel((string) __t('gestionale.contacts.form.relation_new_person'));
     }
 
     /** Le aziende di una persona, con la stessa riga corta dei referenti. */
@@ -575,7 +581,9 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
         ], static::relationText('add_company'))
             ->repeaterStartEmpty()
             ->repeaterAdvanced('departments', 'is_primary', 'receives_documents', 'access')
-            ->repeaterAdvancedLabel((string) __t('gestionale.contacts.form.relation_advanced'));
+            ->repeaterAdvancedLabel((string) __t('gestionale.contacts.form.relation_advanced'))
+            ->repeaterCollapsible(ContactRelations::COMPANY, ['job_title', 'email'])
+            ->repeaterCollapsibleEmptyLabel((string) __t('gestionale.contacts.form.relation_new_company'));
     }
 
     /** La card «Brand», subito dopo il nome: solo le aziende ne hanno. */

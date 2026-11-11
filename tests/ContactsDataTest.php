@@ -131,7 +131,7 @@ check('persone, aziende e fornitori hanno il riquadro «Contatti» al posto di e
         foreach ([CustomerResource::class, CompanyResource::class, SupplierResource::class] as $resource) {
             $campi = $chiavi($resource);
 
-            if (!in_array('contact_points', $campi, true) || !in_array('contact_box_form', $campi, true)
+            if (array_diff(['contact_points_email', 'contact_points_phone', 'contact_box_form'], $campi) !== [] || in_array('contact_points', $campi, true)
                 || array_intersect(['email', 'phone_prefix', 'phone', 'contact_points_form'], $campi) !== []) {
                 return false;
             }
@@ -140,7 +140,7 @@ check('persone, aziende e fornitori hanno il riquadro «Contatti» al posto di e
         // «Si occupa di» sulle righe dei contatti solo per le aziende.
         $colonne = static function (string $resource): array {
             foreach ($resource::formSchema() as $campo) {
-                if ($campo->name === 'contact_points') {
+                if ($campo->name === 'contact_points_email') {
                     return array_map(static fn ($c): string => $c->name, (array) $campo->get('context')['columns']);
                 }
             }
@@ -326,7 +326,7 @@ check('la card dei recapiti ha il riquadro, il marker e lo script; la fatturazio
         $forza(null);
     }
 
-    return $nomi($contatti) === ['contact_points', 'contact_box_form'] && $script !== [] && str_contains($script[0], 'caContactForm')
+    return $nomi($contatti) === ['contact_points_email', 'contact_points_phone', 'contact_box_form'] && $script !== [] && str_contains($script[0], 'caContactForm')
         && array_slice($nomi($fatturazione), -3) === ['place_id', 'lat', 'lng'] && array_slice($nomi($persona), -3) === ['place_id', 'lat', 'lng']
         && str_contains($via($fatturazione), 'data-wi-place-names') && str_contains($via($fatturazione), 'data-ca-place-name="business_name"')
         && !str_contains($via($persona), 'data-ca-place-name');

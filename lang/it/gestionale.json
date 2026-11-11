@@ -38,7 +38,9 @@
             "pickup_none": "Nessun indirizzo di ritiro: vale quello di fatturazione.",
             "other_new": "Altri dati (facoltativi)",
             "other": "Altri dati",
-            "relation_advanced": "Altre opzioni: di cosa si occupa, documenti e accesso"
+            "relation_advanced": "Altre opzioni: di cosa si occupa, documenti e accesso",
+            "relation_new_person": "Nuovo referente",
+            "relation_new_company": "Nuova azienda"
         },
         "brands": {
             "title": "Brand",
