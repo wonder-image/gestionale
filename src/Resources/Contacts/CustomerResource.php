@@ -563,7 +563,7 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
             ->repeaterAdvanced('is_primary', 'receives_documents', 'access', 'brand_ids')
             ->repeaterAdvancedLabel((string) __t('gestionale.contacts.form.relation_advanced'))
             // Una scheda per referente: chiusa mostra nome e ruolo.
-            ->repeaterCollapsible([ContactRelations::PERSON, 'new_name', 'new_surname'], ['job_title', 'email'])
+            ->repeaterCollapsible([ContactRelations::PERSON, 'new_name', 'new_surname'], ['job_title', 'departments'])
             ->repeaterCollapsibleEmptyLabel((string) __t('gestionale.contacts.form.relation_new_person'));
     }
 
@@ -589,7 +589,7 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
             ->repeaterStartEmpty()
             ->repeaterAdvanced('is_primary', 'receives_documents', 'access')
             ->repeaterAdvancedLabel((string) __t('gestionale.contacts.form.relation_advanced'))
-            ->repeaterCollapsible(ContactRelations::COMPANY, ['job_title', 'email'])
+            ->repeaterCollapsible(ContactRelations::COMPANY, ['job_title', 'departments'])
             ->repeaterCollapsibleEmptyLabel((string) __t('gestionale.contacts.form.relation_new_company'));
     }
 
