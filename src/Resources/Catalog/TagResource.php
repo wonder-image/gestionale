@@ -17,6 +17,7 @@ use Wonder\Elements\Form\Form;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Tag;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
+use Wonder\Plugin\Gestionale\Support\Catalog\CatalogMedia;
 use Wonder\Plugin\Gestionale\Support\Catalog\Placements;
 use Wonder\Plugin\Gestionale\Support\Catalog\PlacementsForm;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
@@ -76,7 +77,7 @@ final class TagResource extends GestionaleResource
         return [
             'name' => 'Nome',
             'slug' => 'Url pubblico',
-            'image' => 'Immagine',
+            'image_id' => 'Immagine',
             'visible' => 'Stato',
             'sort_mode' => 'Ordine degli altri articoli',
             'show_placements' => 'Mostra articoli in evidenza',
@@ -93,7 +94,8 @@ final class TagResource extends GestionaleResource
                 ->value('true')
                 ->label('Stato')
                 ->required(),
-            FormField::key('image')->fileDragDrop('image')->label('Immagine'),
+            // Un media della libreria: si sceglie o si carica, e la riga ne tiene l'id.
+            CatalogMedia::input(Tag::class, 'image')->label('Immagine'),
             ...static::siteOrderFields(),
         ];
     }
@@ -106,7 +108,7 @@ final class TagResource extends GestionaleResource
                     SectionTitle::make('Tag')
                         ->tooltip('L\'url pubblico nasce dal nome alla creazione e non cambia più.')
                         ->columnSpan(12),
-                    static::getInput('image')->columnSpan(4),
+                    static::getInput('image_id')->columnSpan(4),
                     (new Container)->components([
                         static::getInput('name')->columnSpan(12),
                         static::getInput('visible')->columnSpan(12),

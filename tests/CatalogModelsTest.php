@@ -85,8 +85,8 @@ check('marchi e categorie hanno posizione e visibilità', function () use ($colo
     $brand = $colonne(Brand::class);
     $category = $colonne(Category::class);
 
-    return isset($brand['position'], $brand['visible'], $brand['logo'])
-        && isset($category['position'], $category['visible'], $category['image']);
+    return isset($brand['position'], $brand['visible'], $brand['logo'], $brand['logo_id'], $brand['logo_svg_id'])
+        && isset($category['position'], $category['visible'], $category['image'], $category['image_id']);
 });
 
 check('Product::image(): misura scelta, sempre contain, skeleton e alt', function () {

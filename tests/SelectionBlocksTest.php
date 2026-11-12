@@ -110,15 +110,16 @@ check('il form ha blocco, fonte e i campi in più; immagine e sfondo solo per i 
     $immagini = [];
 
     foreach (ProductSelectionResource::formSchema() as $field) {
-        if (in_array((string) $field->name, ['image', 'background'], true)) {
+        // Immagine e sfondo sono media della libreria: il campo è la colonna con l'id.
+        if (in_array((string) $field->name, ['image_id', 'background_id'], true)) {
             $immagini[(string) $field->name] = $field;
         }
     }
 
     return array_diff(['block', 'source', 'source_category_slugs', 'source_tag_slugs', 'source_brand_slugs', 'excluded_model_ids', 'max_items', 'block_meta_image_side', 'placements'], $nomi) === []
-        && isset($colonne['background'], $immagini['image'], $immagini['background'])
-        && str_contains(json_encode($immagini['image']->conditionalAttributes()), 'spotlight')
-        && !str_contains(json_encode($immagini['background']->conditionalAttributes()), 'swiper');
+        && isset($colonne['background'], $colonne['image_id'], $colonne['background_id'], $immagini['image_id'], $immagini['background_id'])
+        && str_contains(json_encode($immagini['image_id']->conditionalAttributes()), 'spotlight')
+        && !str_contains(json_encode($immagini['background_id']->conditionalAttributes()), 'swiper');
 });
 
 check('la fonte con riferimenti vuole almeno una categoria, un tag o un marchio', function () {
@@ -212,7 +213,10 @@ check('la selezione nasce in locale: definizione sincronizzata, testi, foto ed e
         && $schema->keepIds
         && $schema->excludeColumns === ProductSelection::SITE_COLUMNS
         && !in_array('source', ProductSelection::SITE_COLUMNS, true)
+        && array_diff(['image_id', 'background_id'], ProductSelection::SITE_COLUMNS) === []
         && array_diff([...ProductSelection::SITE_COLUMNS, 'placements'], ProductSelectionResource::editableWhenReadonly()) === []
+        // Il file caricato in un campo media ha un nome suo: in sola lettura deve passare anche lui.
+        && array_diff(['image_id__wi_media_upload', 'background_id__wi_media_upload'], ProductSelectionResource::editableWhenReadonly()) === []
         && !in_array('source_tag_slugs', ProductSelectionResource::editableWhenReadonly(), true);
 });
 
