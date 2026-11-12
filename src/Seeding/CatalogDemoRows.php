@@ -12,6 +12,7 @@ use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Tax\TaxCategory;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Bundles;
+use Wonder\Plugin\Gestionale\Support\Catalog\ImageSizes;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductImages;
 use Wonder\Plugin\Gestionale\Support\Catalog\Sku;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
@@ -98,8 +99,7 @@ trait CatalogDemoRows
             // Le foto di un articolo stanno in fila: quella dell'articolo,
             // poi quella del colore, poi quella dell'opzione.
             'position' => self::countOf(ProductImage::class, $modelId) + 1,
-            'status' => 'pending',
-            'attempts' => 0,
+            'status' => ProductImages::READY,
         ];
 
         // Le due colonne si scrivono solo quando servono: una foto che vale
@@ -114,7 +114,15 @@ trait CatalogDemoRows
 
         $result = ProductImage::create($riga);
 
-        return !empty($result->success) ? 1 : 0;
+        if (empty($result->success)) {
+            return 0;
+        }
+
+        // Le misure vanno alla coda del core e basta: i dati di prova non
+        // aspettano un ridimensionamento, nemmeno dove lo scheduler è fermo.
+        ImageSizes::handOver($dir.$file);
+
+        return 1;
     }
 
     /**

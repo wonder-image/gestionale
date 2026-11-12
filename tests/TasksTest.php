@@ -5,7 +5,10 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
+use Wonder\App\Media\MemoryResizeStore;
+use Wonder\App\Media\ResizeQueue;
 use Wonder\App\Module\Contracts\ModuleTasks;
+use Wonder\App\Scheduler\Context;
 use Wonder\App\Scheduler\Contracts\TaskInterface;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Scheduler\ImagesTask;
@@ -16,7 +19,7 @@ check('il modulo dichiara le sue attività al core', fn () =>
     is_subclass_of(Gestionale::class, ModuleTasks::class)
 );
 
-check('la coda delle immagini è una di quelle', function () {
+check('la vecchia attività delle immagini resta dichiarata: i siti hanno la sua pianificazione salvata', function () {
     foreach (Gestionale::tasks() as $task) {
         if ($task instanceof ImagesTask) {
             return $task instanceof TaskInterface;
@@ -26,30 +29,38 @@ check('la coda delle immagini è una di quelle', function () {
     return false;
 });
 
-check('l\'attività ha una chiave che il core accetta', function () {
+check('tiene la sua chiave, la sua frequenza e nasce spenta', function () {
     $task = new ImagesTask();
 
     // Stesso vincolo di `TaskRegistry`: minuscole, numeri, punto e trattino.
     return preg_match('/^[a-z0-9][a-z0-9_.-]{0,119}$/D', $task->key()) === 1
-        && $task->key() === 'gestionale.images';
+        && $task->key() === 'gestionale.images'
+        && $task->expression() === '*/5 * * * *'
+        && $task->timeout() > 0 && $task->timeout() <= 3600
+        && $task->enabled() === false
+        && $task->defaultParameters() === []
+        && $task->validate([]) === [];
 });
 
-check('gira ogni cinque minuti e non tiene occupato il processo', function () {
-    $task = new ImagesTask();
+check('è deprecata e lo dice a chi la legge nel pannello', fn () =>
+    str_contains((new ImagesTask())->label(), 'deprecata')
+    && str_contains((new ImagesTask())->label(), 'Ridimensionamento immagini')
+);
 
-    return $task->expression() === '*/5 * * * *'
-        && $task->timeout() > 0
-        && $task->timeout() <= 3600;
+check('fa un giro della coda del core e dice chi la sostituisce', function () {
+    $store = new MemoryResizeStore(gmdate('Y-m-d H:i:s'));
+    $store->usable = false;
+    ResizeQueue::useStore($store);
+
+    try {
+        // Senza tabella la coda del core salta il giro: niente lock, niente database.
+        $esito = (new ImagesTask())->run(new Context([], microtime(true) + 60));
+    } finally {
+        ResizeQueue::useStore(null);
+    }
+
+    return $esito === ['deprecated' => 'wonder.media-resize', 'skipped' => 'image_resizes_missing'];
 });
-
-check('nasce spenta: un sito senza catalogo non ha niente da fare', fn () =>
-    (new ImagesTask())->enabled() === false
-);
-
-check('non chiede parametri', fn () =>
-    (new ImagesTask())->defaultParameters() === []
-    && (new ImagesTask())->validate([]) === []
-);
 
 check('anche gli avvisi di scorta minima sono un\'attività del modulo', function () {
     foreach (Gestionale::tasks() as $task) {

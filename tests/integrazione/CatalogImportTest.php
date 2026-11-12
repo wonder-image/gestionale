@@ -342,7 +342,8 @@ try {
             && $modello !== null && (string) $modello['type'] === 'simple'
             && abs((float) $prodotto['price'] - 19.9) < 0.001
             && $figlia !== null && (int) ($figlia['parent_id'] ?? 0) > 0
-            && $immagine !== null && $immagine['status'] === 'pending'
+            // Le misure vanno alla coda del core: la colonna della vecchia coda nasce chiusa.
+            && $immagine !== null && $immagine['status'] === 'ready'
             && is_file(rtrim(SITE, '/').'/assets/upload'.ProductImages::folder().json_decode((string) $immagine['file'], true)[0])
             && $rifatto['data']['_mode'] === 'update'
             && primo(Product::find(['sku' => 'IMPORT-TEST-1', 'deleted' => 'false'])) === null;

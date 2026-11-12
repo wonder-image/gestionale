@@ -5,6 +5,7 @@ namespace Wonder\Plugin\Gestionale\Support\Catalog\Import;
 use RuntimeException;
 use Throwable;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductImage;
+use Wonder\Plugin\Gestionale\Support\Catalog\ImageSizes;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductImages;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 
@@ -87,8 +88,7 @@ final class RemoteImage
             'file' => json_encode([$name]),
             'alt' => '',
             'position' => count(self::images($modelId)) + 1,
-            'status' => 'pending',
-            'attempts' => 0,
+            'status' => ProductImages::READY,
         ];
 
         if ($variantId > 0) {
@@ -106,6 +106,10 @@ final class RemoteImage
 
             throw new RuntimeException(UserError::make('import.image_save')->getMessage());
         }
+
+        // Il file non è passato da `uploadFiles()`: le misure si consegnano
+        // qui alla coda del core (senza coda si generano subito).
+        ImageSizes::prepare($dir.$name);
 
         return (int) $result->insert_id;
     }

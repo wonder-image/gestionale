@@ -4,18 +4,20 @@ namespace Wonder\Plugin\Gestionale\Scheduler;
 
 use Wonder\App\Scheduler\AbstractTask;
 use Wonder\App\Scheduler\Context;
-use Wonder\Plugin\Gestionale\Support\Catalog\ImageQueue;
+use Wonder\App\Media\ResizeQueue;
 
 /**
- * La coda delle immagini, come attività dello scheduler del core.
+ * Deprecata: le misure delle immagini le genera il task del core
+ * `wonder.media-resize` («Ridimensionamento immagini»), sempre attivo, ogni
+ * minuto.
  *
- * È lo stesso lavoro di `php forge gestionale:images`: chi vuole può lanciarlo
- * a mano, chi non vuole pensarci la accende e la dimentica. Nasce **spenta**,
- * perché un sito senza catalogo non ha niente da ridimensionare.
+ * L'attività resta perché i siti che l'avevano accesa hanno la sua
+ * pianificazione salvata: toglierla lascerebbe quella riga senza attività.
+ * Chi la tiene accesa fa fare un giro in più alla stessa coda, sotto lo
+ * stesso lock: se il task del core sta già lavorando, non fa niente. Nasce
+ * spenta e si può sospendere senza perdere nulla.
  *
- * Ogni cinque minuti e un blocco per volta: le foto arrivano quando il
- * commerciante carica, non a ondate, e tenere i giri corti vuol dire che il
- * processo non resta mai appeso.
+ * @deprecated usa il task del core `wonder.media-resize`.
  */
 final class ImagesTask extends AbstractTask
 {
@@ -26,7 +28,7 @@ final class ImagesTask extends AbstractTask
 
     public function label(): string
     {
-        return 'Gestionale: misure delle immagini del catalogo';
+        return 'Gestionale: misure delle immagini (deprecata, le genera «Ridimensionamento immagini»)';
     }
 
     public function expression(): string
@@ -46,12 +48,6 @@ final class ImagesTask extends AbstractTask
 
     public function run(Context $context): array
     {
-        $result = ImageQueue::work(ImageQueue::BATCH);
-
-        return [
-            'done' => $result['done'],
-            'failed' => $result['failed'],
-            'left' => $result['left'],
-        ];
+        return ['deprecated' => 'wonder.media-resize'] + ResizeQueue::drain($context);
     }
 }

@@ -44,7 +44,8 @@
         "migrations": [
             "Wonder\\Plugin\\Gestionale\\Migrations\\DocumentCompanyMigration",
             "Wonder\\Plugin\\Gestionale\\Migrations\\OrderCompanyBrandMigration",
-            "Wonder\\Plugin\\Gestionale\\Migrations\\PaymentDefaultsNullMigration"
+            "Wonder\\Plugin\\Gestionale\\Migrations\\PaymentDefaultsNullMigration",
+            "Wonder\\Plugin\\Gestionale\\Migrations\\ProductImageQueueMigration"
         ]
     },
     "console": {

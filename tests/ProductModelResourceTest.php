@@ -245,16 +245,16 @@ check('i Model del catalogo restano quelli giusti', fn () =>
     ProductVariant::$table === 'gst_product_variants' && Product::$table === 'gst_products'
 );
 
-check('una foto nuova nasce in attesa delle sue misure', function () {
+check('una foto nuova non nasce più in attesa nella coda del modulo', function () {
     // Il nome del campo porta la fetta: `images_0` è l'articolo, `images_12`
-    // il colore con quell'id.
+    // il colore con quell'id. Le misure le accoda il core al caricamento.
     $riga = ProductModelResource::prepareRepeaterRelationRow(
         'images_0',
         ['product_model_id' => 1, 'file' => '["foto.jpg"]'],
         ['file' => '["foto.jpg"]']
     );
 
-    return ($riga['status'] ?? '') === 'pending' && (int) ($riga['attempts'] ?? -1) === 0;
+    return ($riga['status'] ?? '') === 'ready' && !array_key_exists('attempts', $riga);
 });
 
 check('una foto sceglie a chi appartiene, e "tutto" è una scelta', function () {
@@ -272,19 +272,26 @@ check('una foto sceglie a chi appartiene, e "tutto" è una scelta', function () 
         && count($voci) === 3;
 });
 
-check('le foto non si ridimensionano al salvataggio', function () {
-    // G2a.8: il campo del Model non dichiara nessuna misura, quindi
-    // `uploadFiles()` salta il ridimensionamento e la scheda si salva subito.
+check('le foto sono un campo immagine come gli altri: le misure le accoda il core', function () {
+    // G2a.8 vale ancora dove gira lo scheduler: `uploadFiles()` scrive
+    // l'originale e mette le misure nella coda del core. Il campo non le
+    // rimanda più a una coda del modulo.
     foreach (ProductImage::dataSchema() as $field) {
         if ((string) $field->key !== 'file') {
             continue;
         }
 
-        return empty($field->getSchema('resize')) && empty($field->getSchema('webp'));
+        return ($field->getSchema('resize_deferred') ?? false) !== true
+            && (string) $field->type === 'image';
     }
 
     return false;
 });
+
+check('la scheda dice lo stato delle misure solo in modifica', fn () =>
+    ProductModelResource::formNotices([], 'create') === []
+    && ProductModelResource::formNotices(['id' => 0], 'edit') === []
+);
 
 check('le spunte delle versioni stanno in un campo solo', function () use ($campi) {
     return !isset($campi()['variant_values'], $campi()['product_values']);
