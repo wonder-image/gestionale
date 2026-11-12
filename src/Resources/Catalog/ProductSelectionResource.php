@@ -22,6 +22,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductSelection;
 use Wonder\Plugin\Gestionale\Models\Catalog\Tag;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
+use Wonder\Plugin\Gestionale\Support\Catalog\CatalogMedia;
 use Wonder\Plugin\Gestionale\Support\Catalog\CategoryTree;
 use Wonder\Plugin\Gestionale\Support\Catalog\Placements;
 use Wonder\Plugin\Gestionale\Support\Catalog\PlacementsForm;
@@ -102,8 +103,8 @@ final class ProductSelectionResource extends GestionaleResource
             'title' => 'Titolo',
             'subtitle' => 'Sottotitolo',
             'text' => 'Testo',
-            'image' => 'Immagine',
-            'background' => 'Sfondo',
+            'image_id' => 'Immagine',
+            'background_id' => 'Sfondo',
             'sort_mode' => 'Ordine',
             'visible' => 'Stato',
             'placements' => 'Articoli',
@@ -129,8 +130,9 @@ final class ProductSelectionResource extends GestionaleResource
             static::forBlocks(FormField::key('title')->text()->label('Titolo'), 'title'),
             static::forBlocks(FormField::key('subtitle')->text()->label('Sottotitolo'), 'subtitle'),
             static::forBlocks(FormField::key('text')->textarea('plus')->label('Testo'), 'text'),
-            static::forBlocks(FormField::key('image')->fileDragDrop('image')->label('Immagine'), 'image'),
-            static::forBlocks(FormField::key('background')->fileDragDrop('image')->label('Sfondo'), 'background'),
+            // Media della libreria: il blocco li chiama ancora `image` e `background`.
+            static::forBlocks(CatalogMedia::input(ProductSelection::class, 'image')->label('Immagine'), 'image'),
+            static::forBlocks(CatalogMedia::input(ProductSelection::class, 'background')->label('Sfondo'), 'background'),
             FormField::key('source')
                 ->select(Placements::SELECTION_SOURCES)
                 ->value('manual')
@@ -226,8 +228,8 @@ final class ProductSelectionResource extends GestionaleResource
             static::getInput('title')->columnSpan(6),
             static::getInput('subtitle')->columnSpan(6),
             static::getInput('text')->columnSpan(12),
-            static::getInput('image')->columnSpan(6),
-            static::getInput('background')->columnSpan(6),
+            static::getInput('image_id')->columnSpan(6),
+            static::getInput('background_id')->columnSpan(6),
             ...$blockInputs,
         ])->columns(12)->columnSpan(12);
 
@@ -389,7 +391,9 @@ final class ProductSelectionResource extends GestionaleResource
     /** Fuori dal locale: testi e foto del blocco, articoli scelti a mano ed esclusi. */
     public static function editableWhenReadonly(): array
     {
-        return [...ProductSelection::SITE_COLUMNS, self::PLACEMENTS_INPUT];
+        // Il file caricato in un campo media viaggia in un campo suo: va
+        // nominato, o la sola lettura lo scarta prima del salvataggio.
+        return [...ProductSelection::SITE_COLUMNS, ...CatalogMedia::requestKeys(ProductSelection::class), self::PLACEMENTS_INPUT];
     }
 
     public static function readonlyNotice(): string

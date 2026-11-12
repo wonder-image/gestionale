@@ -39,15 +39,17 @@ check('un\'immagine appartiene a un modello e, se serve, a una variante', functi
         && $righe['product_variant_id']->getSchema('null') !== false;
 });
 
-check('lo stato nasce in attesa', function () use ($colonne) {
+check('le colonne della vecchia coda restano nella tabella (deprecate): non si tolgono', function () use ($colonne) {
     $stato = $colonne(ProductImage::class)['status'];
 
     return $stato->getSchema('enum') === ['pending', 'ready', 'failed']
         && $stato->getSchema('default') === 'pending';
 });
 
-check('i tentativi si contano', function () use ($colonne) {
-    return isset($colonne(ProductImage::class)['attempts']);
+check('i tentativi, la data e l\'errore della vecchia coda restano anche loro', function () use ($colonne) {
+    $c = $colonne(ProductImage::class);
+
+    return isset($c['attempts'], $c['processed_at'], $c['error']);
 });
 
 check('una variante con le sue immagini usa quelle', function () use ($immagini) {
@@ -91,12 +93,11 @@ check('l\'indirizzo pubblico è quello della cartella degli upload', fn () =>
         === '/assets/upload/app/gestionale/prodotti/foto.jpg'
 );
 
-check('le foto non si fanno ridimensionare al salvataggio', function () {
-    // Con il core che conosce `deferResize()` il campo non chiede misure.
+check('il campo non rimanda più le misure a una coda del modulo', function () {
     foreach (ProductImage::dataSchema() as $field) {
         if ((string) $field->key === 'file') {
-            return !method_exists($field, 'deferResize')
-                || ($field->getSchema('resize_deferred') ?? false) === true;
+            return ($field->getSchema('resize_deferred') ?? false) !== true
+                && in_array('mp4', (array) $field->getSchema('extensions'), true);
         }
     }
 

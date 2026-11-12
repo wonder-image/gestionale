@@ -3,9 +3,9 @@
 namespace Wonder\Plugin\Gestionale\Models\Catalog;
 
 use Wonder\App\Model;
-use Wonder\App\Support\MediaFileManager;
 use Wonder\App\Support\SyncSchema;
 use Wonder\Data\UploadSchema as Field;
+use Wonder\Plugin\Gestionale\Support\Catalog\HasCatalogMedia;
 use Wonder\Plugin\Gestionale\Support\Catalog\Placements;
 use Wonder\Plugin\Gestionale\Support\Catalog\SelectionBlocks;
 use Wonder\Plugin\Gestionale\Support\Codes;
@@ -35,6 +35,7 @@ use Wonder\Sql\TableSchema as Column;
 final class ProductSelection extends Model
 {
     use ForgetsRequestMemo;
+    use HasCatalogMedia;
 
     public const MEMO_GROUP = 'placements';
 
@@ -46,9 +47,10 @@ final class ProductSelection extends Model
     /**
      * Le colonne che si scrivono anche in produzione e non viaggiano con il
      * deploy: i testi e le foto del blocco, e gli esclusi, che sono id del
-     * catalogo.
+     * catalogo. Le foto sono id della libreria Media, che è di ogni
+     * ambiente; `image` e `background` sono le colonne file di prima.
      */
-    public const SITE_COLUMNS = ['title', 'subtitle', 'text', 'image', 'background', 'excluded_model_ids'];
+    public const SITE_COLUMNS = ['title', 'subtitle', 'text', 'image', 'background', 'image_id', 'background_id', 'excluded_model_ids'];
 
     public static function syncSchema(): ?SyncSchema
     {
@@ -64,8 +66,11 @@ final class ProductSelection extends Model
             Column::key('title'),
             Column::key('subtitle'),
             Column::key('text')->type('TEXT'),
+            // Deprecate: i file di prima della libreria Media. La migrazione
+            // le svuota; si leggono solo come ripiego ({@see HasCatalogMedia}).
             Column::key('image')->json(),
             Column::key('background')->json(),
+            ...static::mediaTableColumns(),
             Column::key('sort_mode')->enum(['manual', 'newest', 'name', 'price_asc', 'price_desc'])->default('manual'),
             // Il blocco del sito ({@see SelectionBlocks}) e i suoi campi in più.
             Column::key('block')->length(50)->default(SelectionBlocks::DEFAULT),
@@ -105,6 +110,7 @@ final class ProductSelection extends Model
                 ->maxFile(1)
                 ->dir('/catalogo/selezioni/')
                 ->name('{slug}-sfondo'),
+            ...static::mediaDataFields(),
             Field::key('sort_mode')->text()->sanitize(false),
             Field::key('block')->text()->sanitize(false),
             Field::key('block_meta')->json(),
@@ -118,12 +124,28 @@ final class ProductSelection extends Model
         ];
     }
 
+    public static function mediaFields(): array
+    {
+        return [
+            'image' => [
+                'columns' => ['image' => 'image_id'],
+                'slug' => 'selezione-{slug}',
+                'alt' => '{title}',
+                'legacy' => 'app/gestionale/selezioni/catalogo/selezioni',
+            ],
+            'background' => [
+                'columns' => ['image' => 'background_id'],
+                'slug' => 'selezione-{slug}-sfondo',
+                // Uno sfondo è decorativo: nasce senza testo alternativo.
+                'alt' => '',
+                'legacy' => 'app/gestionale/selezioni/catalogo/selezioni',
+            ],
+        ];
+    }
+
     /** L'indirizzo dell'immagine di una riga (`image` o `background`); vuoto se non ce l'ha. */
     public static function imageUrl(array $row, string $column = 'image'): string
     {
-        $field = static::dataFields()[$column] ?? null;
-        $schema = is_object($field) && method_exists($field, 'getSchema') ? (array) $field->getSchema() : [];
-
-        return static::storedFileUrls(MediaFileManager::decodeStoredFiles($row[$column] ?? ''), $schema)[0] ?? '';
+        return isset(static::mediaFields()[$column]) ? static::mediaUrl($row, $column) : '';
     }
 }

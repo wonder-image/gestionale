@@ -2,6 +2,8 @@
 
 namespace Wonder\Plugin\Gestionale\Support\Catalog;
 
+use Wonder\App\Media\ResizeQueue;
+
 /**
  * Quali immagini valgono per una variante, e dove sta il file.
  *
@@ -184,22 +186,138 @@ final class ProductImages
         return $name === '' ? '' : '/assets/upload'.self::folder().$name;
     }
 
-    /** Vero quando le misure sono state generate. */
+    /** Le misure ci sono, o non servono (un video, un file ridimensionato al salvataggio). */
+    public const READY = 'ready';
+
+    /** Le misure sono nella coda del core: intanto il sito mostra l'originale. */
+    public const PENDING = 'pending';
+
+    /** Le misure non si sono generate: l'errore lo dà {@see error()}. */
+    public const FAILED = 'failed';
+
+    /**
+     * Lo stato delle misure di una foto, letto dalla coda del core
+     * (`ResizeQueue::status()` del percorso del file).
+     *
+     * La colonna `status` della riga è della vecchia coda del modulo e non
+     * si scrive più: vale solo dove la coda del core non sa niente del file,
+     * cioè per le righe `pending` non ancora consegnate dalla migrazione e
+     * per quelle rimaste `failed`.
+     *
+     * Legge la coda: una query per foto. Va bene nella scheda di un
+     * articolo, non in un elenco del sito.
+     *
+     * @return self::READY|self::PENDING|self::FAILED
+     */
+    public static function state(array $image, ?string $root = null): string
+    {
+        $path = self::path($image, $root);
+
+        if ($path === '' || !ImageSizes::resizable($path)) {
+            return self::READY;
+        }
+
+        $queued = ResizeQueue::status($path);
+
+        if ($queued !== null) {
+            return match ($queued) {
+                ResizeQueue::PENDING => self::PENDING,
+                ResizeQueue::FAILED => self::FAILED,
+                default => self::READY,
+            };
+        }
+
+        return match ((string) ($image['status'] ?? '')) {
+            self::PENDING => self::PENDING,
+            self::FAILED => self::FAILED,
+            default => self::READY,
+        };
+    }
+
+    /** Perché le misure non si sono generate; vuoto se non c'è un errore. */
+    public static function error(array $image, ?string $root = null): string
+    {
+        $path = self::path($image, $root);
+        $queued = $path !== '' ? ResizeQueue::error($path) : null;
+
+        return $queued ?? trim((string) ($image['error'] ?? ''));
+    }
+
+    /**
+     * Gli avvisi sulle misure delle foto di un articolo, per la sua scheda:
+     * quante sono ancora in preparazione e quali non si sono generate.
+     *
+     * @param list<array<string, mixed>> $images
+     * @return list<array{level: string, message: string}>
+     */
+    public static function notices(array $images, ?string $root = null): array
+    {
+        $pending = 0;
+        $failed = [];
+
+        foreach ($images as $image) {
+            if (!is_array($image)) {
+                continue;
+            }
+
+            $state = self::state($image, $root);
+
+            if ($state === self::PENDING) {
+                $pending++;
+            } elseif ($state === self::FAILED) {
+                $error = self::error($image, $root);
+                $failed[] = self::fileName($image).($error !== '' ? ' ('.$error.')' : '');
+            }
+        }
+
+        $notices = [];
+
+        if ($pending > 0) {
+            $notices[] = [
+                'level' => 'info',
+                'message' => $pending === 1
+                    ? 'Una foto è in elaborazione: le sue misure per il sito si stanno preparando. Intanto il sito mostra l\'originale.'
+                    : $pending.' foto sono in elaborazione: le loro misure per il sito si stanno preparando. Intanto il sito mostra gli originali.',
+            ];
+        }
+
+        if ($failed !== []) {
+            $notices[] = [
+                'level' => 'warning',
+                'message' => 'Le misure di '.(count($failed) === 1 ? 'questa foto' : 'queste foto')
+                    .' non si sono generate: '.implode(', ', $failed)
+                    .'. Il sito mostra l\'originale. Togli la foto e ricaricala, magari riesportata in JPG.',
+            ];
+        }
+
+        return $notices;
+    }
+
+    /**
+     * Vero quando le misure sono pronte (o non servono).
+     *
+     * @deprecated Legge la coda del core con {@see state()}: una query per
+     *             foto. Chi mostra una foto non ne ha bisogno, perché il
+     *             motore delle immagini ripiega sull'originale.
+     */
     public static function isReady(array $image): bool
     {
-        return (string) ($image['status'] ?? '') === 'ready';
+        return self::state($image) === self::READY;
     }
 
     /**
      * Vero quando la foto si può mostrare in vetrina.
      *
      * Non serve che le misure siano pronte: finché la coda non le genera il
-     * motore delle immagini ripiega sul file originale. Restano fuori le foto
-     * che la coda non è riuscita a lavorare e i file che non sono immagini.
+     * motore delle immagini ripiega sul file originale. Restano fuori i file
+     * che non sono immagini e le foto che la vecchia coda del modulo aveva
+     * segnato `failed` (file rotti o spariti): la colonna non si scrive più,
+     * ma quelle righe restano nascoste come prima. Non legge la coda del
+     * core: è pura, e si chiama foto per foto negli elenchi.
      */
     public static function isShowable(array $image): bool
     {
-        if ((string) ($image['status'] ?? '') === 'failed') {
+        if ((string) ($image['status'] ?? '') === self::FAILED) {
             return false;
         }
 

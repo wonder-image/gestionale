@@ -1346,6 +1346,31 @@ HTML
         return number_format($prezzo, 2, ',', '.').' €';
     }
 
+    /**
+     * Lo stato delle misure delle foto, sopra la scheda: quante sono ancora
+     * in elaborazione e quali non si sono generate. Lo dice la coda del core
+     * (`ProductImages::notices()`), non la tabella delle foto.
+     */
+    public static function formNotices(array $values, string $mode): array
+    {
+        $notices = parent::formNotices($values, $mode);
+        $modelId = (int) ($values['id'] ?? 0);
+
+        if ($mode !== 'edit' || $modelId <= 0) {
+            return $notices;
+        }
+
+        try {
+            return [
+                ...$notices,
+                ...ProductImages::notices(static::rowsOf(ProductImage::class, ['product_model_id' => $modelId], 'position')),
+            ];
+        } catch (Throwable) {
+            // Uno stato che non si riesce a leggere non ferma la scheda.
+            return $notices;
+        }
+    }
+
     /** La prima foto dell'articolo, per la miniatura dell'elenco. */
     public static function firstImage(int $modelId): string
     {
@@ -4631,9 +4656,9 @@ HTML
             'file' => $file,
             'alt' => '',
             'position' => $posizione,
-            // Le misure per il sito le farà la coda, come per ogni altra foto.
-            'status' => 'pending',
-            'attempts' => 0,
+            // Le misure le accoda `uploadFiles()` nella coda del core: la
+            // colonna della vecchia coda del modulo non ha niente da dire.
+            'status' => ProductImages::READY,
             // Non è una colonna: il core lo mette al posto di `{file_prefix}`
             // nel nome del file, che così dice di chi è la foto.
             'file_prefix' => ProductImages::filePrefix(
@@ -5089,22 +5114,13 @@ HTML
         }
 
         if ($existingRow !== null) {
-            // Rimettere una foto "in lavorazione" vuol dire riprovarci: i
-            // tentativi ripartono da zero, altrimenti si arrenderebbe subito.
-            if (str_starts_with($inputName, 'images_')
-                && ($payload['status'] ?? '') === 'pending'
-                && ($existingRow['status'] ?? '') === 'failed') {
-                $payload['attempts'] = 0;
-                $payload['error'] = '';
-            }
-
             return $payload;
         }
 
         if (str_starts_with($inputName, 'images_')) {
-            // La riga nasce in attesa: le misure le farà la coda.
-            $payload['status'] = 'pending';
-            $payload['attempts'] = 0;
+            // Le misure le accoda il core al caricamento: la colonna della
+            // vecchia coda del modulo nasce già chiusa.
+            $payload['status'] = ProductImages::READY;
         }
 
         if ($inputName === 'products') {

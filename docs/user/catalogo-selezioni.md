@@ -64,6 +64,13 @@ articoli che cambi online restano tuoi: il deploy successivo non li tocca.
 
    I campi cambiano con il blocco scelto. Lasciati vuoti, il blocco usa i
    suoi testi. Chi costruisce il sito può aggiungere altri blocchi.
+
+   **Immagine** e **sfondo** si scelgono dalla libreria (**Scegli dalla
+   libreria**) o si caricano (**Carica un file**): funzionano come
+   l'immagine di una categoria, spiegata in
+   [Marchi, categorie e tag](catalogo-tassonomie.md#limmagine-e-il-logo). Le
+   immagini sono di ogni sito: quelle scelte in locale non arrivano online
+   con il deploy, vanno scelte anche lì.
 5. **Ordine:** «Nell'ordine dato» segue l'elenco scelto a mano, o l'ordine
    della fonte (vedi sotto); le altre regole (novità, nome, prezzo) valgono
    per tutta la fonte.

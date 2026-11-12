@@ -34,6 +34,40 @@ versionamento semantico.
   ruolo `warehouse` e alle sedi dell'azienda dal pannello ordine.
 
 ### Aggiunto
+- **Catalogo: immagini di categorie, tag e selezioni e logo dei marchi nella
+  libreria Media del core** (app#158). Le quattro schede usano il campo media:
+  si sceglie un'immagine già in libreria o se ne carica una, e la riga ne
+  tiene l'id (`image_id` su categorie e tag, `image_id` e `background_id`
+  sulle selezioni, `logo_id` e `logo_svg_id` sui marchi). Il media creato dal
+  campo prende lo slug dalla voce (`categoria-{slug}`, `tag-{slug}`,
+  `logo-{slug}`, `selezione-{slug}`, `selezione-{slug}-sfondo`) e il testo
+  alternativo dal suo nome (`{name}`, `Logo {name}`, `{title}`). Un media in
+  uso non si elimina dalla libreria.
+  - **Il marchio ha due campi**, «Logo» (immagine) e «Logo vettoriale (svg)»
+    (icona), perché un campo media del core ha un tipo solo; il sito usa il
+    vettoriale se c'è (`Brand::logoUrl()`).
+  - **Lettura** da `Support\Catalog\HasCatalogMedia`, sui quattro Model:
+    `Category::imageUrl()`, `Tag::imageUrl()`, `Brand::logoUrl()`,
+    `ProductSelection::imageUrl()` (stessa firma di prima), `media()` per
+    `Image::fromMedia()` e `mediaMany()` per gli elenchi, con una lettura sola.
+  - **Migrazione** `CatalogMediaMigration` (a ogni `forge update`, piano puro
+    in `CatalogMediaPlan`): per ogni riga con un file crea un media del tipo
+    giusto copiando il file in libreria (l'originale resta, niente si
+    sovrascrive), scrive l'id, svuota la colonna di prima e registra
+    l'utilizzo, tutto in una transazione. Gira dopo l'allineamento delle
+    tabelle (`database.migrations_after_tables`), quindi basta un
+    `php forge update` anche dove il core arriva insieme al modulo. Per le
+    righe che non si riescono a migrare (elencate nel resoconto dell'update)
+    il sito legge il file di prima.
+  - **Deprecate** le colonne file `image`, `background` e `logo`: restano
+    nelle tabelle, fuori dai form, lette solo come ripiego. **Chi le leggeva a
+    mano nel codice di un sito (`$categoria['image']`) dopo la migrazione le
+    trova vuote: deve passare da `imageUrl()` / `logoUrl()`.** I file di prima
+    restano sul disco e si possono togliere a mano. Eliminando una voce il suo
+    media resta in libreria, non usato.
+  - In sola lettura (le selezioni in produzione) immagine e sfondo restano
+    modificabili; i loro id sono in `ProductSelection::SITE_COLUMNS` e non
+    viaggiano con il deploy.
 - **Novità di customer-account (riquadro dei contatti, contatti di lavoro,
   indirizzi per nome) nel gestionale:**
   - **Riquadro «Contatti»** su persone, aziende e fornitori al posto di email,
@@ -222,6 +256,46 @@ versionamento semantico.
   (`RowVisibility` vieta `deleted` nelle regole; serve un aiuto del core).
 
 ### Cambiato
+- **Il gestionale chiede la versione di `wonder-image/app` con la coda dei
+  ridimensionamenti e il campo media** (app#214, la prima dopo
+  `2.4.0-beta.7`): usa `ResizeQueue`, `MediaUsages`, `MediaFile` e
+  `FormField::media()`, che prima non ci sono. `module.json` dichiara già
+  `^2.4.0-beta.8`, il numero atteso; **`composer.json` resta a
+  `^2.4.0-beta.6 || dev-main` finché quella versione non è rilasciata** e va
+  alzato allora, con il lock (vedi il commento in `tests/ManifestTest.php`).
+  **Chi aggiorna deve avere il core a quella versione.**
+- **Immagini dei prodotti: le misure le genera la coda del core** (app#158).
+  Una coda sola, un task solo, un comando solo: `Support\Catalog\ImageQueue`
+  e `Unavailable` non ci sono più. Il campo di `ProductImage` non dichiara più
+  `deferResize()`: `uploadFiles()` scrive l'originale e accoda le misure in
+  `image_resizes` (`Wonder\App\Media\ResizeQueue`), il task del core
+  `wonder.media-resize` le genera entro un minuto. Un mp4 non ha misure.
+  - **Righe in attesa:** `ProductImageQueueMigration` (a ogni `forge update`)
+    consegna alla coda del core le foto rimaste `pending`, chiude i video e
+    segna `failed` i file spariti; niente si ridimensiona dentro l'update. Gira
+    dopo l'allineamento delle tabelle (`database.migrations_after_tables`).
+  - **Stato:** la scheda dell'articolo dice in alto quante foto sono in
+    elaborazione e quali non si sono generate, letto dalla coda
+    (`ProductImages::state()`, `error()`, `notices()`). Le colonne `status`,
+    `attempts`, `processed_at` ed `error` di `gst_product_images` sono
+    **deprecate**: restano, le righe nuove nascono `ready`, e si leggono solo
+    `pending` (da consegnare) e `failed` (foto che la vecchia coda non era
+    riuscita a lavorare, ancora nascoste al sito). Una foto che fallisce
+    nella coda del core resta visibile con l'originale. Le foto fallite non
+    finiscono più in `error_reports` (`catalog.image.resize`): le mostra la
+    card «Immagini» della home del backend.
+  - **`gestionale.images` e `php forge gestionale:images` sono deprecati** e
+    restano come involucri: l'attività (spenta di serie) fa un giro della
+    coda del core, il comando avvisa e lancia `php forge media:resize`
+    (`--limit` non conta più). Chi li usa può passare al task
+    `wonder.media-resize` e a `media:resize` quando vuole.
+  - **Senza scheduler** il core ridimensiona durante il salvataggio: prima il
+    salvataggio era immediato e le misure nascevano solo lanciando
+    `gestionale:images`; ora le misure ci sono sempre ma venti foto tengono
+    fermo il salvataggio. Dove gira lo scheduler il salvataggio resta
+    immediato.
+  - Importazione (`RemoteImage`) e dati di prova consegnano le loro foto alla
+    stessa coda con `Support\Catalog\ImageSizes`.
 - **Anagrafiche: «Tipo ufficio» unico su recapiti e referenti, e si creano tipi nuovi.** Al posto dell'etichetta dei recapiti e di «Si occupa di» c'è un solo campo, «Tipo ufficio», a scelta multipla, su email e telefoni di aziende, fornitori e persone e sui referenti (in riga, non più in «Altre opzioni»). Il «+» accanto crea un tipo nuovo che vale ovunque (`Resources\Contacts\OfficeTypeResource`, path `app/gestionale/tipi-ufficio`, permessi dell'area contatti; i tipi si rinominano, non si eliminano). Sui recapiti non si sceglie più «Principale»: resta quello che lo era, altrimenti la prima riga. «Mansione» diventa «Ruolo». La scheda in lettura mostra i tipi ufficio anche per le persone; l'MCP (`customer_get`) aggiunge `departments_label` ai `contact_points`. Tabelle e migrazione stanno in customer-account (`contact_office_types`, `contact_point_departments`, `PointOfficeTypesMigration`: l'etichetta «Fatturazione» diventa il tipo «Amministrazione»): serve `php forge update`.
 - **Anagrafiche: recapiti divisi per tipo, referenti e aziende a scheda.** Il riquadro dei recapiti ha un elenco per le email e uno per i telefoni, ognuno con il suo «Aggiungi», senza la tendina «Tipo». Ogni referente (e ogni azienda di una persona) è una scheda richiudibile che chiusa mostra nome, ruolo ed email; si riordina trascinandola dalla maniglia e si toglie con il cestino, al posto dei bottoni su, giù ed elimina (Repeater di `wonder-image/app`).
 - **Form delle anagrafiche: spiegazioni nel tooltip.** Nel form di aziende, persone e fornitori la spiegazione di ogni sezione sta nel tooltip accanto al titolo (`SectionTitle::tooltip()`) e non più in una riga sotto, al contrario di quanto dice la voce qui sotto. «Altri dati» non ha più la frase di descrizione (`form.other_help*` tolte) e gli indirizzi partono senza una riga vuota, come brand e referenti.
