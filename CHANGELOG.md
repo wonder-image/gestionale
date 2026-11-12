@@ -256,6 +256,15 @@ versionamento semantico.
   (`RowVisibility` vieta `deleted` nelle regole; serve un aiuto del core).
 
 ### Cambiato
+- **Il gestionale chiede la versione di `wonder-image/app` con la coda dei
+  ridimensionamenti e il campo media** (app#214, la prima dopo
+  `2.4.0-beta.7`): usa `ResizeQueue`, `MediaUsages`, `MediaFile` e
+  `FormField::media()`, che prima non ci sono. `module.json` dichiara già
+  `^2.4.0-beta.8`, il numero atteso; **`composer.json` resta a
+  `^2.4.0-beta.6 || dev-main` finché quella versione non è rilasciata** e va
+  alzato allora, con il lock (vedi il commento in `tests/ManifestTest.php`).
+  **Chi aggiorna deve avere il core a quella versione**, e lanciare
+  `php forge update` due volte se core e modulo arrivano insieme.
 - **Immagini dei prodotti: le misure le genera la coda del core** (app#158).
   Una coda sola, un task solo, un comando solo: `Support\Catalog\ImageQueue`
   e `Unavailable` non ci sono più. Il campo di `ProductImage` non dichiara più
