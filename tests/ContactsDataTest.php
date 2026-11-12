@@ -657,8 +657,10 @@ check('la riga del referente: persona, ruolo e ufficio insieme, poi i contatti a
 
     $tolte = ['new_name', 'new_surname', 'new_email', 'is_primary', 'receives_documents', 'access', 'departments'];
 
-    return ($colonne['person_id'] ?? 0) + ($colonne['job_title'] ?? 0) + ($colonne['department'] ?? 0) === 9
-        && ($aziende['company_id'] ?? 0) + ($aziende['job_title'] ?? 0) + ($aziende['department'] ?? 0) === 9
+    // La spunta «Rappresentante legale» chiude la prima riga accanto all'ufficio.
+    return ($colonne['person_id'] ?? 0) + ($colonne['job_title'] ?? 0) + ($colonne['department'] ?? 0) + ($colonne['is_legal_representative'] ?? 0) === 9
+        && ($aziende['company_id'] ?? 0) + ($aziende['job_title'] ?? 0) + ($aziende['department'] ?? 0) + ($aziende['is_legal_representative'] ?? 0) === 9
+        && ($colonne['is_legal_representative'] ?? 0) === 2 && ($aziendeCrm['is_legal_representative'] ?? 0) === 2
         // Senza CRM un'email e un telefono su una riga; con, il repeater dei «Contatti aziendali».
         && ($colonne['email'] ?? 0) + ($colonne['phone_prefix'] ?? 0) + ($colonne['phone'] ?? 0) === 9 && !isset($colonne['points'])
         && ($conCrm['points'] ?? 0) === 12 && !isset($conCrm['email']) && !isset($conCrm['phone'])
