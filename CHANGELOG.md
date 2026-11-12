@@ -272,8 +272,8 @@ versionamento semantico.
   `wonder.media-resize` le genera entro un minuto. Un mp4 non ha misure.
   - **Righe in attesa:** `ProductImageQueueMigration` (a ogni `forge update`)
     consegna alla coda del core le foto rimaste `pending`, chiude i video e
-    segna `failed` i file spariti; niente si ridimensiona dentro l'update. Se
-    `image_resizes` non c'è ancora aspetta l'update successivo.
+    segna `failed` i file spariti; niente si ridimensiona dentro l'update. Gira
+    dopo l'allineamento delle tabelle (`database.migrations_after_tables`).
   - **Stato:** la scheda dell'articolo dice in alto quante foto sono in
     elaborazione e quali non si sono generate, letto dalla coda
     (`ProductImages::state()`, `error()`, `notices()`). Le colonne `status`,

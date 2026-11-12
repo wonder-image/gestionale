@@ -20,9 +20,9 @@ use Wonder\Plugin\Gestionale\Support\Catalog\ProductImages;
  *
  * Gira a ogni update e scrive solo dove trova `pending`: la seconda volta
  * non ha niente da fare. Raccoglie così anche le righe scritte `pending` da
- * codice del sito che non conosce ancora la coda nuova. Finché la tabella
- * `image_resizes` non esiste (la crea lo stesso update, dopo le migrazioni
- * dei moduli) non fa niente e le righe aspettano l'update successivo.
+ * codice del sito che non conosce ancora la coda nuova. Gira dopo
+ * l'allineamento delle tabelle (`database.migrations_after_tables`), quando
+ * `image_resizes` c'è già; se manca comunque, non fa niente.
  */
 final class ProductImageQueueMigration implements ModuleMigration
 {

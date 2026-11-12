@@ -137,11 +137,10 @@ compaiono nel resoconto dell'update a ogni giro, finché non si sistemano.
 
 Tre cose da sapere:
 
-- **Serve il secondo `forge update`** dove il core arriva insieme al modulo: le
-  migrazioni dei moduli girano prima dell'allineamento delle tabelle, quindi
-  al primo giro `media_usages` non c'è ancora e la migrazione aspetta. Le
-  colonne con l'id le aggiunge da sé.
-- **Fino ad allora, e per le righe saltate, vale il file di prima:**
+- **Basta un `forge update`**, anche dove il core arriva insieme al modulo:
+  la migrazione è dichiarata in `database.migrations_after_tables` e gira
+  dopo l'allineamento delle tabelle, quando `media_usages` c'è già.
+- **Per le righe saltate vale il file di prima:**
   `mediaUrl()` ripiega su `legacyMediaUrl()` quando la riga non ha un media e
   la colonna di prima è ancora piena. Una riga migrata l'ha vuota, quindi
   togliere il media non fa ricomparire la foto vecchia.
@@ -681,9 +680,9 @@ un comando solo.
 `Migrations\ProductImageQueueMigration` gira a ogni `forge update` e consegna
 alla coda del core le righe rimaste `pending`: una foto va in `image_resizes`
 e la riga diventa `ready`, un video diventa `ready`, un file sparito diventa
-`failed` con il motivo. Niente si ridimensiona dentro l'update. Finché
-`image_resizes` non esiste (la crea lo stesso update, dopo le migrazioni dei
-moduli) le righe aspettano l'update successivo.
+`failed` con il motivo. Niente si ridimensiona dentro l'update. Gira
+dopo l'allineamento delle tabelle (`database.migrations_after_tables`),
+quando `image_resizes` c'è già.
 
 Della vecchia colonna si leggono ancora due valori: `pending` (da consegnare)
 e `failed`, che `ProductImages::isShowable()` continua a tenere fuori dalla
