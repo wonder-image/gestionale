@@ -398,8 +398,8 @@ try {
             return true;
         });
 
-        check('le foto nascono in attesa delle misure', function () {
-            $rows = ProductImage::find(['status' => 'pending', 'deleted' => 'false']);
+        check('le foto ci sono, e le misure sono affare della coda del core', function () {
+            $rows = ProductImage::find(['status' => 'ready', 'deleted' => 'false']);
             $rows = is_array($rows) && $rows !== []
                 ? (isset($rows['id']) ? [$rows] : array_values(array_filter($rows, 'is_array')))
                 : [];

@@ -60,8 +60,95 @@ Ognuna ha il suo `code` con prefisso (`bra_`, `cat_`, `tag_`) e uno `slug`
 generato dal nome alla creazione, poi fisso: è l'indirizzo della pagina e non
 deve cambiare sotto i piedi di chi ha messo un link.
 
-Il logo del marchio accetta SVG: il core lo ripulisce al caricamento
-(`SvgSanitizer` in `uploadFiles()`), il modulo non aggiunge controlli suoi.
+### Immagini e logo: media della libreria
+
+L'immagine di categorie, tag e selezioni e il logo dei marchi sono **media
+della libreria del core** (`docs/app/concetti/media.md` di `wonder-image/app`):
+la riga ne tiene l'id, il form usa il campo media (`FormField::media()`), che
+sceglie dalla libreria o carica un file nuovo.
+
+| Model | Campo | Colonne con l'id | Slug del media creato dal campo | Testo alternativo |
+|---|---|---|---|---|
+| `Category` | `image` | `image_id` | `categoria-{slug}` | `{name}` |
+| `Tag` | `image` | `image_id` | `tag-{slug}` | `{name}` |
+| `Brand` | `logo` | `logo_svg_id` (icona svg), `logo_id` (immagine) | `logo-{slug}` | `Logo {name}` |
+| `ProductSelection` | `image` | `image_id` | `selezione-{slug}` | `{title}` |
+| `ProductSelection` | `background` | `background_id` | `selezione-{slug}-sfondo` | nessuno |
+
+Ogni Model dichiara i suoi campi in `mediaFields()` (trait
+`Support\Catalog\HasCatalogMedia`): da lì nascono le colonne (`INT NULL`), i
+campi dei dati, l'input del form (`CatalogMedia::input($model, $campo, $tipo)`)
+e la migrazione. Il prefisso dello slug evita che la categoria `scarpe` e il
+marchio `scarpe` si contendano lo stesso nome di file: lo slug di un media è
+unico in tutta la libreria, e se è preso il core aggiunge `-2`.
+
+**Il marchio ha due campi** perché un campo media del core ha un tipo solo:
+«Logo» è un'immagine (png, jpg, webp), «Logo vettoriale (svg)» un'icona, che
+il core ripulisce con `SvgSanitizer`. `Brand::logoUrl()` dà il vettoriale se
+c'è, altrimenti il raster.
+
+**Si legge sempre dal Model, mai dalla colonna:**
+
+```php
+Category::imageUrl($categoria);                    // indirizzo, '' se non c'è
+Brand::logoUrl($marchio);
+ProductSelection::imageUrl($selezione, 'background');
+
+Category::media($categoria, 'image');              // MediaFile|null
+echo Image::fromMedia(Category::media($categoria, 'image'));   // responsive, con il testo alternativo
+
+// Un elenco: una lettura sola, poi l'indirizzo senza altre query.
+$media = Category::mediaMany($categorie, 'image');
+foreach ($categorie as $chiave => $categoria) {
+    $url = Category::mediaUrl($categoria, 'image', $media[$chiave] ?? null);
+}
+```
+
+Il registro degli utilizzi (`MediaUsages`) lo tengono aggiornato i controller
+delle Resource: un media usato da una categoria non si elimina dalla libreria
+finché la categoria lo usa. Eliminando la voce l'utilizzo si libera e il media
+resta in libreria, non usato. Il modulo non ha altri lettori di questi file:
+feed, esportazioni, API e MCP non li espongono.
+
+**In sola lettura** (le selezioni in produzione) i campi media restano
+modificabili: `editableWhenReadonly()` nomina anche il campo del file caricato
+(`CatalogMedia::requestKeys()`), perché il core filtra la richiesta per nome.
+`image_id` e `background_id` stanno in `ProductSelection::SITE_COLUMNS`: la
+libreria è di ogni ambiente e gli id non viaggiano con il deploy.
+
+#### Le colonne file di prima (deprecate)
+
+`image`, `background` e `logo` restano nelle tabelle (l'allineamento toglie le
+colonne che spariscono dallo schema, e con loro i dati) ma non sono più nel
+form. `Migrations\CatalogMediaMigration` gira a ogni `forge update` e, per
+ogni riga con un file in quella colonna:
+
+1. **copia** il file in `assets/upload/images` (o `icons` per un svg), con il
+   nome del nuovo slug: l'originale resta dov'è, niente si sovrascrive;
+2. in una transazione sola crea il media, scrive il suo id sulla riga, svuota
+   la colonna di prima (`[]`) e registra l'utilizzo con `MediaUsages`;
+3. accoda le misure dell'immagine (o le genera subito senza scheduler).
+
+Il piano è puro (`Support\Catalog\CatalogMediaPlan`, provato in
+`tests/CatalogMediaMigrationTest.php`): tipo dall'estensione, slug libero,
+copia identica riusata dopo un giro interrotto, righe saltate con il motivo
+(file mancante, estensione non ammessa, indirizzo esterno). Le righe saltate
+compaiono nel resoconto dell'update a ogni giro, finché non si sistemano.
+
+Tre cose da sapere:
+
+- **Basta un `forge update`**, anche dove il core arriva insieme al modulo:
+  la migrazione è dichiarata in `database.migrations_after_tables` e gira
+  dopo l'allineamento delle tabelle, quando `media_usages` c'è già.
+- **Per le righe saltate vale il file di prima:**
+  `mediaUrl()` ripiega su `legacyMediaUrl()` quando la riga non ha un media e
+  la colonna di prima è ancora piena. Una riga migrata l'ha vuota, quindi
+  togliere il media non fa ricomparire la foto vecchia.
+- **Chi leggeva la colonna a mano** (`$categoria['image']` nel codice di un
+  sito) dopo la migrazione la trova vuota: deve passare da `imageUrl()` /
+  `logoUrl()` / `media()`.
+
+Il ripiego e le colonne di prima si tolgono in una versione successiva.
 
 ### L'albero delle categorie
 
@@ -493,10 +580,12 @@ prezzo, codice, giacenza, foto — invece di inventarlo e farlo correggere dopo.
 livelli: `save($level, $parentId, $attributi, $input)`, `read()`, `describe()`.
 Il livello sceglie la tabella; il tipo sceglie la colonna.
 
-## Immagini, con il resize in differita
+## Immagini, con le misure nella coda del core
 
 `gst_product_images`: `product_model_id`, `product_variant_id`, `product_id`,
-`file`, `alt`, `position`, `status`, `attempts`, `processed_at`, `error`.
+`file`, `alt`, `type`, `position`. Le colonne `status`, `attempts`,
+`processed_at` ed `error` sono **deprecate**: erano della coda del modulo, che
+non c'è più (vedi sotto).
 
 **Tre livelli, e si legge dal più preciso.** Le due colonne di collegamento sono
 nullable, e quale delle due è piena dice a chi appartiene la foto:
@@ -532,43 +621,84 @@ busta di `$_FILES` — quindi si passa da `Table::prepare()` del core con
 posto in un `finally`.
 
 **Foto e video insieme:** il campo è `fileDragDrop('gallery')` e `ProductImage`
-accetta `png, jpg, jpeg, webp, mp4`, 8 MB, un file per riga. `ImageQueue` non
-prova a ridimensionare un video (`isVideo()`): lo segna `ready` e va avanti.
+accetta `png, jpg, jpeg, webp, mp4`, 8 MB, un file per riga. Un mp4 non ha
+misure: `uploadFiles()` lo salva com'è.
 
-**Il salvataggio non ridimensiona niente** (G2a.8). Un campo immagine, se non
-dice niente, prende da sé le misure responsive del sito: venti foto vogliono
-dire centinaia di file generati mentre qualcuno aspetta. Il campo dichiara
-`deferResize()` del core, l'upload scrive solo l'originale e la riga nasce
-`pending`.
+**Le misure le genera la coda del core** (G2a.8). Venti foto da telefono
+vogliono dire centinaia di file generati mentre qualcuno aspetta: per questo
+il salvataggio scrive solo l'originale. Il campo è un campo immagine come gli
+altri, senza più `deferResize()`: `uploadFiles()` accoda le misure responsive
+del sito in `image_resizes` (`Wonder\App\Media\ResizeQueue`) e il task del
+core `wonder.media-resize`, sempre attivo, le genera entro un minuto. Finché
+mancano, il sito mostra l'originale. Le regole della coda stanno in
+`docs/app/concetti/coda-ridimensionamenti.md` di `wonder-image/app`.
+
+| | Con lo scheduler del core | Senza scheduler |
+|---|---|---|
+| Salvataggio | scrive l'originale e accoda: non aspetta | **ridimensiona durante il salvataggio** (il ripiego del core) |
+| Misure | dal task, entro un minuto | subito |
+
+Un sito senza scheduler prima aveva il salvataggio immediato e le misure solo
+lanciando `gestionale:images`; ora ha le misure sempre, e paga l'attesa al
+salvataggio. Dove contano i tempi del pannello va configurato il cron dello
+scheduler.
 
 ```php
 ProductImages::for($immagini, $varianteId);              // le sue, se ne ha; altrimenti quelle del modello
 ProductImages::for($immagini, $varianteId, $productId);  // e prima ancora quelle di quella riga
 ProductImages::path($immagine);                          // dove sta il file
-ImageQueue::work(20);                                    // ['done' => …, 'failed' => …, 'left' => …, 'blocked' => '']
+ProductImages::state($immagine);                         // 'ready' | 'pending' | 'failed', dalla coda del core
+ProductImages::error($immagine);                         // perché non si sono generate
+ImageSizes::prepare($percorso);                          // un file scritto a mano: accoda, o ridimensiona subito
 ```
 
-Chi fa girare la coda:
+**Lo stato viene dalla coda, per percorso del file** (`ResizeQueue::status()`
+ed `error()`). La scheda dell'articolo lo mostra in alto con `formNotices()`:
+quante foto sono in elaborazione e quali non si sono generate
+(`ProductImages::notices()`). `state()` fa una query per foto: va bene nella
+scheda, non in un elenco del sito, dove non serve perché i renderer usano
+solo le misure presenti su disco.
 
-| Come | Quando |
+**Chi scrive un file senza passare da `uploadFiles()`** (l'importazione con
+`RemoteImage`, i dati di prova) lo consegna con `Support\Catalog\ImageSizes`:
+`prepare()` accoda e, senza coda, ridimensiona subito; `handOver()` accoda e
+basta, anche con lo scheduler fermo.
+
+### La coda del modulo non c'è più
+
+`Support\Catalog\ImageQueue` è stata tolta: c'è una coda sola, un task solo,
+un comando solo.
+
+| Prima | Adesso |
 |---|---|
-| `php forge gestionale:images` | a mano, o da un cron ogni minuto (`--limit`) |
-| attività `gestionale.images` | dallo scheduler del core, ogni cinque minuti, da accendere |
+| `ImageQueue::work()` | `ResizeQueue::drain()` del core |
+| attività `gestionale.images` | task `wonder.media-resize` del core. L'attività resta, **deprecata** e spenta di serie: fa un giro della stessa coda sotto lo stesso lock, così la pianificazione salvata dai siti non resta senza attività |
+| `php forge gestionale:images` | `php forge media:resize` (`--failed` per riprovare i falliti). Il comando resta, **deprecato**: avvisa e lancia quello del core, per i cron che lo chiamano. `--limit` si accetta e non conta più |
+| colonne `status`, `attempts`, `processed_at`, `error` | deprecate: lo stato è nella coda del core. Le righe nuove nascono `ready` |
+| segnalazione `catalog.image.resize` in `error_reports` | la card **Immagini** nella home del backend (`MediaResizeStatus` del core) |
 
-Tre cose imparate facendola:
+`Migrations\ProductImageQueueMigration` gira a ogni `forge update` e consegna
+alla coda del core le righe rimaste `pending`: una foto va in `image_resizes`
+e la riga diventa `ready`, un video diventa `ready`, un file sparito diventa
+`failed` con il motivo. Niente si ridimensiona dentro l'update. Gira
+dopo l'allineamento delle tabelle (`database.migrations_after_tables`),
+quando `image_resizes` c'è già.
 
-1. **La cartella deve essere una sola.** Il repeater **scrive** i file nella
+Della vecchia colonna si leggono ancora due valori: `pending` (da consegnare)
+e `failed`, che `ProductImages::isShowable()` continua a tenere fuori dalla
+vetrina. Una foto che fallisce nella coda del core invece resta visibile con
+il suo originale.
+
+Due cose imparate con la prima coda, ancora vere:
+
+1. **La cartella deve essere una sola.** Il form **scrive** i file nella
    cartella del Model e li **rilegge** in quella della Resource che ospita il
    form: finché le due non coincidono, l'anteprima di una foto caricata non si
    vede. Per questo `ProductImage::$folder` è il percorso della pagina dei
    modelli e il campo non aggiunge nessun `dir()`.
-2. **I comandi non hanno le funzioni globali** del framework: la coda chiama la
-   classe `ResponsiveImage` del core invece di `imageResize()`, e una chiamata
-   senza `\` dentro un namespace cercherebbe comunque
-   `Wonder\Plugin\…\imageResize()`.
-3. **Quando è il sito a non poter lavorare** — una costante che esiste solo
-   durante una richiesta web — la coda si ferma e lo dice (`blocked`), invece di
-   bruciare i tentativi delle righe una per una.
+2. **Lo scheduler e i comandi non conoscono `RESPONSIVE_IMAGE_SIZES`:** le
+   larghezze si salvano nella riga della coda al caricamento. `ImageSizes`
+   usa quelle del sito quando ci sono, altrimenti quelle di serie del core.
 
 ## La scheda: due colonne
 

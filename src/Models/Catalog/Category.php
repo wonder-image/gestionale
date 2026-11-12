@@ -5,6 +5,7 @@ namespace Wonder\Plugin\Gestionale\Models\Catalog;
 use Wonder\App\Model;
 use Wonder\App\Support\SyncSchema;
 use Wonder\Data\UploadSchema as Field;
+use Wonder\Plugin\Gestionale\Support\Catalog\HasCatalogMedia;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Sql\TableSchema as Column;
 use Wonder\Plugin\Gestionale\Support\ForgetsRequestMemo;
@@ -15,10 +16,14 @@ use Wonder\Plugin\Gestionale\Support\ForgetsRequestMemo;
  * L'albero è solo `parent_id`: ordinamento, indentazione e controllo dei cicli
  * stanno in `Support\Catalog\CategoryTree`, che è pura e si prova senza
  * database. Il catalogo non si sincronizza tra ambienti.
+ *
+ * L'immagine è un media della libreria del core: `image_id` ne tiene l'id
+ * e si legge con {@see imageUrl()} o {@see HasCatalogMedia::media()}.
  */
 final class Category extends Model
 {
     use ForgetsRequestMemo;
+    use HasCatalogMedia;
 
     public const MEMO_GROUP = 'categories';
 
@@ -38,7 +43,10 @@ final class Category extends Model
             Column::key('parent_id')->int()->foreign(self::$table),
             Column::key('name'),
             Column::key('slug')->length(150)->unique(),
+            // Deprecata: il file di prima della libreria Media. La migrazione
+            // la svuota; si legge solo come ripiego ({@see HasCatalogMedia}).
             Column::key('image')->json(),
+            ...static::mediaTableColumns(),
             Column::key('description')->type('TEXT'),
             Column::key('position')->int(),
             Column::key('visible')->enum(['true', 'false'])->default('true'),
@@ -69,11 +77,31 @@ final class Category extends Model
                 ->maxFile(1)
                 ->dir('/catalogo/categorie/')
                 ->name('{slug}'),
+            ...static::mediaDataFields(),
             Field::key('description')->text(),
             Field::key('position')->number()->decimals(0),
             Field::key('visible')->text()->sanitize(false),
             Field::key('sort_mode')->text()->sanitize(false),
             Field::key('show_placements')->number()->decimals(0),
         ];
+    }
+
+    public static function mediaFields(): array
+    {
+        return [
+            'image' => [
+                'columns' => ['image' => 'image_id'],
+                'slug' => 'categoria-{slug}',
+                'alt' => '{name}',
+                // La cartella della pagina delle categorie più quella del campo.
+                'legacy' => 'app/gestionale/categorie/catalogo/categorie',
+            ],
+        ];
+    }
+
+    /** L'indirizzo dell'immagine di una categoria; vuoto se non ce l'ha. */
+    public static function imageUrl(array $row): string
+    {
+        return static::mediaUrl($row, 'image');
     }
 }

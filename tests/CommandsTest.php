@@ -39,10 +39,51 @@ check('i nomi sono quelli dichiarati nel manifest', function () {
         && (new VariantSlugsCommand)->getName() === 'gestionale:variant-slugs';
 });
 
-check('la coda delle immagini si può chiamare a blocchi', function () {
+check('gestionale:images accetta ancora --limit, per i cron che lo passano', function () {
     $opzione = (new ImagesCommand)->getDefinition()->getOption('limit');
 
     return $opzione->isValueRequired() && (int) $opzione->getDefault() === 20;
+});
+
+check('gestionale:images è deprecato e lancia media:resize del core', function () {
+    $core = new class extends Command {
+        public int $giri = 0;
+
+        protected function configure(): void
+        {
+            $this->setName(ImagesCommand::CORE_COMMAND);
+        }
+
+        protected function execute(\Symfony\Component\Console\Input\InputInterface $input, \Symfony\Component\Console\Output\OutputInterface $output): int
+        {
+            $this->giri++;
+            $output->writeln('coda del core svuotata');
+
+            return Command::SUCCESS;
+        }
+    };
+
+    $forge = new \Symfony\Component\Console\Application();
+    $forge->setAutoExit(false);
+    $forge->add($core);
+    $forge->add(new ImagesCommand());
+
+    $output = new BufferedOutput();
+    $esito = $forge->find('gestionale:images')->run(new ArrayInput(['--limit' => '5']), $output);
+    $testo = $output->fetch();
+
+    return $esito === Command::SUCCESS
+        && $core->giri === 1
+        && str_contains($testo, 'deprecato')
+        && str_contains($testo, 'media:resize')
+        && str_contains($testo, 'coda del core svuotata');
+});
+
+check('senza il comando del core gestionale:images si ferma e lo dice', function () {
+    $output = new BufferedOutput();
+    $esito = (new ImagesCommand())->run(new ArrayInput([]), $output);
+
+    return $esito === Command::FAILURE && str_contains($output->fetch(), 'aggiorna wonder-image/app');
 });
 
 check('gli slug delle varianti si possono prima solo elencare', function () {
