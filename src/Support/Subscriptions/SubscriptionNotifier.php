@@ -39,7 +39,7 @@ final class SubscriptionNotifier
         $company = $companyId > 0 ? Company::findById($companyId) : null;
         $company = is_array($company) && (int) ($company['id'] ?? 0) > 0 ? $company : null;
         // Con l'azienda scrive alla sua prima email per l'area del documento (o alla
-        // principale; al referente se non ne ha), gli altri in copia come per gli ordini.
+        // principale; al referente se non ne ha), le altre e il referente in copia come per gli ordini.
         $address = $company !== null ? (DocumentReferents::companyEmails($companyId, 'subscription.'.$key, $company)[0] ?? $personEmail) : $personEmail;
         $to = Recipients::parse($address)['valid'];
         // Il brand non è dell'abbonamento: contano solo le aree (`subscription.` + la chiave).

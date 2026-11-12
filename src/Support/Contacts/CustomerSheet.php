@@ -4,6 +4,7 @@ namespace Wonder\Plugin\Gestionale\Support\Contacts;
 
 use Wonder\Elements\Components\Badge;
 use Wonder\Elements\Components\DataItem;
+use Wonder\Elements\Components\Link;
 use Wonder\Plugin\Gestionale\Resources\Promotions\CouponResource;
 use Wonder\Plugin\Gestionale\Resources\Subscriptions\SubscriptionResource;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
@@ -90,15 +91,17 @@ final class CustomerSheet
      * I contatti della scheda (`ContactPoints::all()` di customer-account),
      * un recapito per riga: prima email e telefono principali, poi gli altri,
      * con l'etichetta («Email di accesso» per quella con cui la persona entra
-     * nel sito), «principale» e i tipi ufficio.
+     * nel sito), «principale» e gli uffici. Con `$kinds` (il CRM) ogni recapito
+     * dice per primo il suo tipo: email, telefono fisso, cellulare, WhatsApp.
      * Senza recapiti la voce dice «Nessun recapito». Tutto escapato.
      *
      * @param list<array{kind?: string, value?: string, phone_prefix?: string, label?: string, is_primary?: bool, departments?: list<string>}> $points
      * @param array<string, string> $labels etichetta => testo (`ContactPoints::labels()` più quella dell'accesso)
-     * @param array<string, string> $areas tipo ufficio => testo (`ContactRelations::departments()`)
+     * @param array<string, string> $areas ufficio => testo (`ContactRelations::departments()`)
+     * @param array<string, string> $kinds tipo => testo (`ContactPoints::kindLabel()`); vuoto = il tipo non si mostra
      * @return list<DataItem>
      */
-    public static function points(array $points, array $labels = [], array $areas = []): array
+    public static function points(array $points, array $labels = [], array $areas = [], array $kinds = []): array
     {
         $lines = [];
 
@@ -109,11 +112,12 @@ final class CustomerSheet
                 continue;
             }
 
-            if (($point['kind'] ?? '') === 'phone') {
+            if (\Wonder\Plugin\CustomerAccount\Support\ContactPoints::isPhone($point['kind'] ?? '')) {
                 $value = trim((string) ($point['phone_prefix'] ?? '').' '.$value);
             }
 
             $details = array_filter([
+                $kinds[(string) ($point['kind'] ?? '')] ?? '',
                 $labels[(string) ($point['label'] ?? '')] ?? '',
                 !empty($point['is_primary']) ? 'principale' : '',
                 implode(', ', array_filter(array_map(static fn ($area): string => $areas[(string) $area] ?? '', (array) ($point['departments'] ?? [])))),
@@ -122,6 +126,35 @@ final class CustomerSheet
         }
 
         return [DataItem::make('Contatti', implode('<br>', $lines))->html(true)->placeholder('Nessun recapito')->columnSpan(['default' => 12, 'sm' => 8])];
+    }
+
+    /**
+     * I social di una persona (`Socials::of()` di customer-account), uno per
+     * riga: il link, che si apre in un'altra scheda, e la rete. Solo URL http o
+     * https: il resto si salta. Tutto escapato.
+     *
+     * @param array<string, string> $socials rete => URL
+     * @param array<string, string> $networks rete => testo (`Socials::networks()`)
+     * @return list<DataItem>
+     */
+    public static function socials(array $socials, array $networks, string $title, string $empty): array
+    {
+        $lines = [];
+
+        foreach ($socials as $network => $url) {
+            $url = trim((string) $url);
+
+            if (preg_match('#^https?://#i', $url) !== 1) {
+                continue;
+            }
+
+            $testo = rtrim((string) preg_replace('#^https?://(www\.)?#i', '', $url), '/');
+            $rete = (string) ($networks[(string) $network] ?? $network);
+            $lines[] = Link::to($url, $testo)->target('_blank')->rel('noopener')->render('bootstrap')
+                .' <span class="text-muted">· '.OrderSheet::esc($rete).'</span>';
+        }
+
+        return [DataItem::make($title, implode('<br>', $lines))->html(true)->placeholder($empty)->columnSpan(['default' => 12, 'sm' => 8])];
     }
 
     /**

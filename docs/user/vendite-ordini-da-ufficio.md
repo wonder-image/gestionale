@@ -41,7 +41,7 @@ Dal menu **⋯** di ogni bozza: **Conferma ordine** (senza email al cliente) ed
   gestionale](anagrafiche.md#con-chi-lavora-il-gestionale)).
 * **Referente** — solo per un'azienda, e se il sito ha acceso i referenti (vedi
   [Referenti e aziende](anagrafiche.md#referenti-e-aziende)). Parte dal
-  **referente principale** e puoi sceglierne un altro fra i suoi referenti,
+  **primo referente** della scheda e puoi sceglierne un altro fra i suoi referenti,
   oppure nessuno. Il suo nome si stampa sul PDF come «Alla c.a.». Se non
   c'è, **Aggiungi** accanto alla tendina lo crea in una finestra, già legato
   all'azienda scelta, e lo sceglie.

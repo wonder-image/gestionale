@@ -11,19 +11,19 @@ use Wonder\Plugin\CustomerAccount\Support\ContactRelations;
  * chi dell'azienda va in copia.
  *
  * Il referente è la persona del documento (`customer_id`): si sceglie fra
- * tutte le persone legate all'azienda (`people()`), e il principale è
- * proposto di default. Il nome si copia in `referent_name`, così resta anche
- * se il legame cambia. Con il brand del documento si propone prima chi segue
- * quel brand.
+ * tutte le persone legate all'azienda (`people()`), e di default è proposto
+ * il primo della scheda. Il nome si copia in `referent_name`, così resta
+ * anche se il legame cambia. Con il brand del documento si propone prima chi
+ * segue quel brand. «Principale» e «Riceve i documenti» non si scelgono più
+ * nei form e qui non contano: restano salvati sul legame.
  *
- * Le copie delle mail (`recipients()`) vanno a chi riceve i documenti e «si
- * occupa di» l'area del documento (`AREAS`) o di tutto, e segue il brand del
- * documento o tutti: `ContactRelations::peopleFor()`. Se nessuno corrisponde
- * vale la regola di prima: tutti quelli che ricevono i documenti. Un'azienda
- * che non compila le aree non vede cambiare niente. L'email di un referente è
- * quella per quell'azienda (`contact_email`: di lavoro se c'è, altrimenti la
- * principale della persona); gli altri contatti della persona non ricevono
- * documenti.
+ * In copia (`copyEmails()`) vanno le email dell'azienda e il referente
+ * scelto sul documento: nessun altro referente riceve copie da solo.
+ * `recipients()` elenca chi «si occupa di» l'area del documento (`AREAS`), di
+ * tutto o è dell'ufficio «Generale», e segue il brand del documento o tutti
+ * (`ContactRelations::peopleFor()`); se nessuno corrisponde, tutti i
+ * referenti. L'email di un referente è quella per quell'azienda
+ * (`contact_email`: di lavoro se c'è, altrimenti la principale della persona).
  *
  * Le email dell'azienda (`companyEmails()`) sono quelle del suo riquadro
  * «Contatti» che si occupano dell'area del documento o di tutto
@@ -35,8 +35,7 @@ final class DocumentReferents
     /**
      * L'area di ogni documento che parte verso un'azienda: chi compra riceve
      * preventivo, conferma e DDT; chi paga proforma e solleciti degli
-     * abbonamenti. Un documento che non è qui va a chi riceve i documenti,
-     * qualunque cosa segua. Le chiavi sono quelle delle email (`OrderNotifier`,
+     * abbonamenti. Un documento che non è qui non ha un'area: vale per tutti. Le chiavi sono quelle delle email (`OrderNotifier`,
      * `subscription.` + quelle di `SubscriptionNotifier`); un sito ne aggiunge
      * o ne cambia con `useArea()`.
      */
@@ -59,8 +58,8 @@ final class DocumentReferents
     private static $companyReader = null;
 
     /**
-     * Cambia o aggiunge l'area di un documento; vuota = a chi riceve i
-     * documenti, qualunque area segua. Un modulo lo chiama al boot.
+     * Cambia o aggiunge l'area di un documento; vuota = nessuna area.
+     * Un modulo lo chiama al boot.
      */
     public static function useArea(string $document, string $area): void
     {
@@ -74,10 +73,9 @@ final class DocumentReferents
     }
 
     /**
-     * Chi dell'azienda riceve un documento: chi riceve i documenti fra chi si
-     * occupa della sua area (o di tutto) e segue il brand (o tutti), il
-     * principale per primo. Nessuno così: tutti quelli che ricevono i
-     * documenti, come prima delle aree.
+     * I referenti dell'azienda per un documento: chi si occupa della sua area
+     * (o di tutto, o è «Generale») e segue il brand (o tutti), nell'ordine
+     * della scheda. Nessuno così: tutti i referenti.
      *
      * @return list<array{id: int, name: string, email: string, phone: string, job_title: string, departments: list<string>, role: string, is_primary: bool}>
      */
@@ -86,35 +84,34 @@ final class DocumentReferents
         $area = self::area($document);
 
         if ($area !== '' || $brandId > 0) {
-            $matching = self::read($companyId, true, max(0, $brandId), $area);
+            $matching = self::read($companyId, max(0, $brandId), $area);
 
             if ($matching !== []) {
                 return $matching;
             }
         }
 
-        return self::read($companyId, true);
+        return self::read($companyId);
     }
 
     /**
-     * Tutti quelli che ricevono i documenti, senza guardare area e brand.
+     * Tutti i referenti dell'azienda, senza guardare area e brand: come `people()`.
      *
      * @return list<array{id: int, name: string, email: string, phone: string, job_title: string, departments: list<string>, role: string, is_primary: bool}>
      */
     public static function options(int $companyId): array
     {
-        return self::read($companyId, true);
+        return self::read($companyId);
     }
 
     /**
-     * Tutte le persone legate all'azienda, anche quelle che non ricevono i
-     * documenti: fra queste si sceglie il referente.
+     * Tutte le persone legate all'azienda: fra queste si sceglie il referente.
      *
      * @return list<array{id: int, name: string, email: string, phone: string, job_title: string, departments: list<string>, role: string, is_primary: bool}>
      */
     public static function people(int $companyId): array
     {
-        return self::read($companyId, false);
+        return self::read($companyId);
     }
 
     /**
@@ -123,7 +120,7 @@ final class DocumentReferents
      *
      * @return list<array{id: int, name: string, email: string, phone: string, job_title: string, departments: list<string>, role: string, is_primary: bool}>
      */
-    private static function read(int $companyId, bool $onlyDocuments, int $brandId = 0, string $area = ''): array
+    private static function read(int $companyId, int $brandId = 0, string $area = ''): array
     {
         if ($companyId <= 0 || !ContactRelations::enabled()) {
             return [];
@@ -137,12 +134,13 @@ final class DocumentReferents
             return [];
         }
 
-        return self::fromRows($rows, $onlyDocuments);
+        return self::fromRows($rows);
     }
 
     /**
      * Dalle righe di `ContactRelations::peopleFor()` alle opzioni: solo legami
-     * vivi, con la persona viva e, con `$onlyDocuments`, che ricevono i documenti.
+     * vivi, con la persona viva. `$onlyDocuments` resta per compatibilità e
+     * non filtra più: «Riceve i documenti» non si sceglie più.
      *
      * @param list<array<string, mixed>> $rows
      * @return list<array{id: int, name: string, email: string, phone: string, job_title: string, departments: list<string>, role: string, is_primary: bool}>
@@ -158,8 +156,7 @@ final class DocumentReferents
 
             if ($id <= 0 || isset($seen[$id])
                 || ($row['deleted'] ?? 'false') !== 'false'
-                || ($contact['deleted'] ?? 'false') !== 'false'
-                || ($onlyDocuments && ($row['receives_documents'] ?? 'false') !== 'true')) {
+                || ($contact['deleted'] ?? 'false') !== 'false') {
                 continue;
             }
 
@@ -175,7 +172,7 @@ final class DocumentReferents
                     : trim((string) ($contact['phone_prefix'] ?? '').' '.(string) ($contact['phone'] ?? '')),
                 'job_title' => $job = trim((string) ($row['job_title'] ?? '')),
                 'departments' => $areas = ContactRelations::cleanDepartments($row['departments'] ?? []),
-                // Il ruolo, altrimenti i tipi ufficio: è quello che si legge nelle tendine.
+                // Il ruolo, altrimenti gli uffici: è quello che si legge nelle tendine.
                 'role' => $job !== '' ? $job : self::areasLabel($areas),
                 'is_primary' => ($row['is_primary'] ?? 'false') === 'true',
             ];
@@ -191,17 +188,17 @@ final class DocumentReferents
     }
 
     /**
-     * Il referente proposto per un documento nuovo: il principale, altrimenti
-     * nessuno. Con il brand del documento, prima il principale fra chi segue
-     * quel brand; se fra loro non c'è, il principale di tutti.
+     * Il referente proposto per un documento nuovo: il primo della scheda,
+     * altrimenti nessuno. Con il brand del documento, il primo fra chi segue
+     * quel brand; se nessuno lo segue, il primo di tutti.
      */
     public static function defaultFor(int $companyId, int $brandId = 0): int
     {
         foreach (array_unique([max(0, $brandId), 0]) as $brand) {
-            foreach (self::read($companyId, false, $brand) as $option) {
-                if ($option['is_primary']) {
-                    return $option['id'];
-                }
+            $first = self::read($companyId, $brand)[0] ?? null;
+
+            if ($first !== null) {
+                return $first['id'];
             }
         }
 
@@ -280,10 +277,10 @@ final class DocumentReferents
 
     /**
      * Gli indirizzi in copia per le mail al cliente di un documento: le email
-     * dell'azienda per l'area del documento (`companyEmails()`) e quelle dei
-     * referenti che lo ricevono (`recipients()`, con l'area di `$document` e
-     * il brand del documento), senza doppioni e senza gli indirizzi che
-     * ricevono già la mail.
+     * dell'azienda per l'area del documento (`companyEmails()`) e quella del
+     * referente scelto sul documento (`customer_id`), senza doppioni e senza
+     * gli indirizzi che ricevono già la mail. Gli altri referenti non
+     * ricevono copie.
      *
      * @param array<string, mixed> $order
      * @param array<string, mixed>|null $company la scheda dell'azienda, se già letta
@@ -297,14 +294,10 @@ final class DocumentReferents
             return [];
         }
 
-        // Senza «Brand» i brand seguiti non contano: il documento vale per tutti.
-        $options = self::recipients($companyId, $document, Brands::enabled() ? (int) ($order['company_brand_id'] ?? 0) : 0);
         $exclude = array_map('strtolower', array_map('trim', preg_split('/[,;\s]+/', (string) ($order['email'] ?? '')) ?: []));
         $emails = self::companyEmails($companyId, $document, $company);
 
-        foreach ($options as $option) {
-            $emails[] = $option['email'];
-        }
+        $emails[] = self::emailOf($companyId, (int) ($order['customer_id'] ?? 0));
 
         $out = [];
 

@@ -281,21 +281,30 @@ check('il gestionale distingue password e provider federati', function () {
         ]) === 'Email e password';
 });
 
-check('nel repeater degli indirizzi la via cerca anche per nome, riempie «Presso» e porta place ID e coordinate', function () {
+check('nel repeater degli indirizzi la via cerca anche per nome e porta place ID e coordinate; «Presso» non è nel form', function () {
     $campo = (new ReflectionMethod(CustomerResource::class, 'addressesField'))->invoke(null);
     $nome = new ReflectionProperty(\Wonder\App\ResourceSchema\Input::class, 'name');
     $colonne = [];
+    $larghezze = [];
 
     foreach ((array) $campo->get('context')['columns'] as $colonna) {
         $colonne[(string) $nome->getValue($colonna)] = (string) $colonna->get('attribute');
+        $larghezze[(string) $nome->getValue($colonna)] = (int) ($colonna->columnSpan['default'] ?? 0);
     }
 
     $pulita = CustomerResource::prepareRepeaterRelationRow('addresses', ['street' => 'Via Roma', 'place_id' => 'x<y', 'lat' => '45.46', 'lng' => '9.19'], []);
     $buona = CustomerResource::prepareRepeaterRelationRow('addresses', ['place_id' => 'ChIJabc_def-123', 'lat' => '45.46', 'lng' => '9.19'], []);
+    $somma = static fn (array $chiavi): int => array_sum(array_intersect_key($larghezze, array_flip($chiavi)));
 
     return str_contains($colonne['street'] ?? '', 'data-wi-place="addresses[]["') && str_contains($colonne['street'] ?? '', 'data-wi-place-names')
-        && str_contains($colonne['street'] ?? '', 'data-ca-place-name="business_name"')
-        && count(array_intersect(['place_id', 'lat', 'lng', 'business_name'], array_keys($colonne))) === 4
+        && !str_contains($colonne['street'] ?? '', 'data-ca-place-name')
+        && count(array_intersect(['place_id', 'lat', 'lng'], array_keys($colonne))) === 3
+        && !array_key_exists('business_name', $colonne) && array_key_exists('is_default', $colonne)
+        // Le righe del form: etichetta, nome e cognome; via, civico e predefinito; paese, provincia, città e CAP (somma 9: il repeater è ordinabile).
+        && $somma(['label', 'name', 'surname']) === 9 && $somma(['street', 'number', 'is_default']) === 9
+        && $somma(['country', 'province', 'city', 'cap']) === 9
+        // Una riga salvata senza `business_name` non lo porta al salvataggio: il valore salvato resta.
+        && !array_key_exists('business_name', $pulita) && !array_key_exists('business_name', $buona)
         && $pulita['place_id'] === null && $pulita['lat'] === 45.46 && ($pulita['street'] ?? '') === 'Via Roma'
         && $buona['place_id'] === 'ChIJabc_def-123' && $buona['lng'] === 9.19;
 });
@@ -318,19 +327,12 @@ check('la creazione rapida dei legami: target, campi, errore senza id', function
         && !isset($senzaNome['id']) && str_contains((string) ($senzaNome['error'] ?? ''), 'ragione sociale');
 });
 
-check('la creazione rapida del referente non chiede al form un campo email che non ha', function () {
+check('la creazione rapida del referente ha i suoi campi: non dipende dall\'email del form', function () {
     $referente = (array) (new ReflectionMethod(CompanyResource::class, 'relationQuickCreate'))->invoke(null, ContactRelations::COMPANY);
     $nomi = array_map(static fn ($campo) => $campo->name, CustomerResource::quickPersonFields());
 
-    try {
-        CustomerResource::getInput('email');
-        $nelForm = true;
-    } catch (RuntimeException) {
-        $nelForm = false;
-    }
-
-    // Senza layout la finestra chiamerebbe getInput('email') e la pagina darebbe errore.
-    return ($referente[4] ?? null) instanceof Closure && $nomi === ['name', 'surname', 'email'] && !$nelForm;
+    // L'email del form è quella di accesso (può essere bloccata): la finestra usa i suoi campi.
+    return ($referente[4] ?? null) instanceof Closure && $nomi === ['name', 'surname', 'email'];
 });
 
 summary();

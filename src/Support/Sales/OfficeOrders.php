@@ -239,7 +239,7 @@ final class OfficeOrders
             return [];
         }
 
-        // Il referente proposto è il principale fra chi segue il brand proposto.
+        // Il referente proposto è il primo fra chi segue il brand proposto.
         $brandId = $brandId ?? self::defaultBrand($companyId);
         $referent = DocumentReferents::resolve($companyId, $personId > 0 ? $personId : DocumentReferents::defaultFor($companyId, $brandId));
         $person = self::alive(Contact::class, (int) $referent['customer_id']);

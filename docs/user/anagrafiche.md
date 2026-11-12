@@ -69,12 +69,13 @@ nello stesso ordine, in creazione e in modifica:
 1. **Azienda** (o **Persona**): ragione sociale o nome e cognome, ruolo, stato;
 2. **Brand**, per le aziende, con la funzionalità *Brand*;
 3. **Recapiti dell'azienda** (per una persona **Email e telefoni**): le email
-   e i telefoni generici, come info@, amministrazione o centralino;
+   e i telefoni generici, come info@, amministrazione o centralino. Con la
+   funzionalità *CRM* una persona ha qui sotto anche i **Social**;
 4. **Referenti** (per una persona **Aziende**): le persone con cui parli, con
-   il loro contatto di lavoro. L'email di una persona precisa va qui, non nei
+   i loro contatti aziendali. L'email di una persona precisa va qui, non nei
    recapiti dell'azienda;
 5. **Dati di fatturazione**;
-6. **Indirizzi di consegna e ritiro**: dove consegni al cliente o ritiri dal
+6. **Indirizzi di consegna/ritiro**: dove consegni al cliente o ritiri dal
    fornitore. Sul fornitore si chiama **Indirizzi di ritiro**, su una persona
    **Indirizzi di consegna**;
 7. **Altri dati**: pagamento e note. In creazione è chiuso; in modifica si apre
@@ -127,42 +128,62 @@ il campo su *Nessuno* e salva.
 
 ## Contatti
 
-Tutte le email e i telefoni di una persona, di un'azienda o di un fornitore
-stanno nel riquadro dei contatti della scheda (**Recapiti dell'azienda** per
-aziende e fornitori, **Email e telefoni** per le persone), divisi per tipo:
-prima le **Email**, poi i **Telefoni**, ognuno con il suo *Aggiungi*. Una riga
-ha il recapito (l'email, oppure prefisso e numero: il prefisso parte da quello
-del paese del sito) e il **Tipo ufficio**: uno o più fra *Amministrazione*,
-*Acquisti*, *Commerciale*, *Tecnico*, *Direzione*, *Altro* e quelli che hai
-creato tu. Vuoto vuol dire che il recapito vale per tutto. Così
-*amministrazione@* riceve proforma e solleciti anche senza creare un referente
-(vedi sotto).
+Le email e i telefoni di una persona, di un'azienda o di un fornitore stanno
+nel riquadro dei contatti della scheda: **Recapiti dell'azienda** per aziende e
+fornitori, **Email e telefoni** per le persone. Quanti ne puoi scrivere dipende
+dalla funzionalità **CRM** (area *Anagrafiche*, spenta di serie).
 
-Per **creare un tipo ufficio** nuovo (per esempio *Marketing*) premi il **+**
-accanto al campo, scrivi il nome e conferma: il tipo si seleziona nella riga e
-da quel momento lo trovi in tutte le schede, sui recapiti e sui referenti. Un
-nome che esiste già riprende quel tipo, senza doppioni. I tipi creati si
-rinominano ma non si eliminano.
+**Senza CRM** il riquadro ha un'email e un telefono soli, su una riga: email,
+prefisso e numero. Il prefisso parte da quello del paese del sito.
+
+**Con il CRM** il riquadro è un elenco: una riga per recapito, con *Aggiungi
+un contatto* in fondo. Ogni riga ha il **Tipo** (*Email*, *Telefono fisso*,
+*Cellulare*, *WhatsApp*) e, secondo il tipo, l'email oppure prefisso e numero.
+Per aziende e fornitori la riga ha anche l'**Ufficio**: uno solo fra
+*Generale*, *Amministrazione*, *Acquisti*, *Commerciale*, *Tecnico*,
+*Direzione*, *Altro* e quelli che hai creato tu. Una riga nuova parte da
+*Generale*, la prima voce: è quella giusta per info@ o per il numero unico
+dell'azienda, e vuol dire che il recapito vale per tutto. Così
+*amministrazione@*, con l'ufficio *Amministrazione*, riceve proforma e
+solleciti anche senza creare un referente (vedi sotto).
+
+Spegnendo il CRM non si perde niente: il form mostra solo la prima email e il
+primo telefono, e i recapiti in più già salvati restano dove sono. Tornano
+quando lo riaccendi.
+
+Per **creare un ufficio** nuovo (per esempio *Marketing*) premi il **+**
+accanto al campo, scrivi il nome e conferma: l'ufficio si seleziona nella riga
+e da quel momento lo trovi in tutte le schede, sui recapiti e sui referenti. Un
+nome che esiste già riprende quell'ufficio, senza doppioni. Gli uffici creati
+si rinominano ma non si eliminano.
 
 Il recapito che il gestionale usa (ordini, documenti, ricerche, export) è uno
-per tipo: quello che lo era già, altrimenti la prima riga. Non c'è più da
-sceglierlo. Le righe si tolgono con il cestino. Salvare una scheda senza toccarla la lascia com'è
-(il numero di telefono viene solo riscritto in cifre, senza spazi). Un'email
-scritta male o ripetuta ferma il salvataggio, e una email già di un'altra
-scheda pure (se la scheda non è fra le tue, senza dire di chi è).
+per l'email e uno per il telefono: la prima riga di ognuno. Non c'è da
+sceglierlo. Le righe si tolgono con il cestino. Salvare una scheda senza
+toccarla la lascia com'è (il numero di telefono viene solo riscritto in cifre,
+senza spazi). Un'email scritta male o ripetuta ferma il salvataggio, e una
+email già di un'altra scheda pure (se la scheda non è fra le tue, senza dire
+di chi è).
 
-- Una persona con un **account sul sito** ha in testa l'**Email di accesso**,
-  bloccata: si cambia dal suo account, non dal gestionale (nemmeno dalle
+- Una persona ha l'**Email di accesso** in un campo a parte, sopra gli altri
+  contatti: è quella con cui entra nell'area clienti e non compare fra le
+  righe dell'elenco. Se la persona ha già un **account sul sito** il campo è
+  bloccato: si cambia dal suo account, non dal gestionale (nemmeno dalle
   finestre dell'ordine, che lo dicono). Le altre email non servono mai per
   accedere.
+- Con il CRM una persona ha anche il riquadro **Social**: una riga per rete,
+  con il suo indirizzo. Senza CRM non si vede e i social già salvati restano.
 - Una scheda che ha già un contatto non resta **senza**: un riquadro svuotato
   non si salva. Se
   l'ultimo contatto è sbagliato, cambialo. Una scheda nuova può nascere senza
   contatti.
 
 La scheda in lettura mostra tutti i contatti, con il principale, l'email di
-accesso e i tipi ufficio. Le finestre *Contatti* dell'ordine da ufficio cambiano solo
-email e telefono principali.
+accesso e gli uffici. Con il **CRM** acceso ogni contatto porta anche il suo
+tipo (Email, Telefono fisso, Cellulare, WhatsApp) e la scheda di una persona
+elenca i suoi **social**: il nome della rete e l'indirizzo, che si apre in
+un'altra scheda del browser. Le finestre *Contatti* dell'ordine da ufficio
+cambiano solo email e telefono principali.
 
 ## Dati di fatturazione
 
@@ -179,11 +200,11 @@ senza vederli.
 L'indirizzo della scheda è quello **di fatturazione**. Dove si consegna si
 scrive nel riquadro *Indirizzi di consegna*: uno per il magazzino, uno per
 casa, uno per il cantiere. Il **destinatario** è chi il corriere deve cercare,
-e spesso non è chi compra. **Presso** è l'attività o la società a
-quell'indirizzo (facoltativo): cercando nella via il nome di un'attività si
-riempie da solo, se è vuoto, e resta modificabile. Vale anche per le sedi di
-un'azienda, nel form e nelle finestre dell'ordine da ufficio. L'ordine copia
-dalla sede scelta anche place ID e coordinate.
+e spesso non è chi compra. Nella via si cerca anche il **nome di
+un'attività**: Google completa l'indirizzo. Il campo **Presso** non c'è più,
+né nel form della scheda né nella finestra *Aggiungi indirizzo* della scheda
+di una persona: un «presso» già salvato resta sull'indirizzo e non si perde
+quando salvi. L'ordine copia dalla sede scelta anche place ID e coordinate.
 
 Gli indirizzi si gestiscono anche dalla **scheda del cliente** (il nome nell'elenco
 la apre): il riquadro *Indirizzi di consegna* mostra una card per indirizzo, con
@@ -195,7 +216,7 @@ scheda ma non dagli ordini già fatti, che ne conservano una copia.
 
 Anche un **fornitore** ha i suoi indirizzi: sono quelli dove **ritiri la
 merce**, quando non coincidono con la sede di fatturazione. Il riquadro è lo
-stesso e cambia solo il nome: *Indirizzi di consegna e ritiro* dove scegli se
+stesso e cambia solo il nome: *Indirizzi di consegna/ritiro* dove scegli se
 l'azienda è cliente, fornitore o tutti e due, *Indirizzi di ritiro* nella
 scheda di chi è solo fornitore.
 
@@ -217,8 +238,8 @@ fiscale, e per un'azienda partita IVA, SDI e PEC, più l'indirizzo). Sotto, **tu
 i suoi dati** — nome o ragione sociale, ruolo, stato, email, telefono, accesso al
 sito (solo per le persone) e note — e gli **indirizzi di consegna**. La scheda di
 un'azienda elenca anche i suoi **referenti**, quella di una persona le **aziende**
-per cui è referente: il nome apre la loro scheda, sotto c'è il ruolo e se è il
-principale o riceve i documenti. Poi gli ordini, il carrello, gli
+per cui è referente: il nome apre la loro scheda, sotto ci sono il ruolo e i
+contatti che usa per quell'azienda. Poi gli ordini, il carrello, gli
 **abbonamenti** (con la funzionalità *Abbonamenti*) e, in fondo, i coupon.
 
 La scheda di una persona che è **solo referente** si apre come le altre, ma
@@ -255,7 +276,9 @@ brand delle sue aziende e ne crea uno solo dal **+** (vedi
 [Commerciali](commerciali.md)).
 
 I preventivi e gli ordini da ufficio di un'azienda hanno il campo **Brand**,
-fra i brand di quell'azienda: parte dal **predefinito** (o dal primo). Servirà
+fra i brand di quell'azienda: parte dal **primo** dell'elenco. Nel form
+dell'azienda il *Predefinito* non si sceglie più: se un'azienda ne aveva già
+uno segnato, vale ancora quello finché resta fra i suoi brand. Servirà
 per legare al brand i progetti nati dal preventivo. Il documento tiene il nome
 del brand com'era: se poi il brand cambia nome, si stacca dall'azienda o si
 archivia, il preventivo non cambia. Unendo due brand doppioni, i documenti
@@ -265,15 +288,28 @@ del cliente, su una riga sua fra *Alla c.a.* e la ragione sociale.
 
 La scheda del brand ha **logo**, **sito**, **domini email** (uno o più, per
 riconoscere le email del brand; vuoto, si ricava dal sito) e **descrizione**.
+Con la funzionalità **CRM** ci sono anche i **recapiti** del brand (una riga
+per recapito, con il **Tipo**, l'email oppure prefisso e numero, e
+l'**Ufficio**, di serie *Generale*) e i **social**, nel gruppo *Recapiti e
+social*: valgono anche con *Brand kit* spenta.
 Con la funzionalità **Brand kit** (area *Anagrafiche*, serve *Brand*) ci sono
-anche i **recapiti** del brand (più email e telefoni, ognuno con la sua
-etichetta), social, **colori** (scelti col selettore o scritti in HEX, per
+anche **colori** (scelti col selettore o scritti in HEX, per
 esempio `#1a2b3c`), tono, **settore** (da una tendina con le sezioni ATECO),
 **lingua** (da una tendina, di serie *Italiano*) e il link ai materiali; un
 settore scritto a mano prima di questa versione resta salvato ma la tendina lo
 mostra vuoto finché non ne scegli uno; spenta, quei campi non si vedono e
-restano salvati. Il logo compare accanto al brand nell'ordine da ufficio e
+restano salvati. Con *Brand kit* accesa e il CRM spento il brand ha
+un'email e un telefono soli e nessun social: i recapiti in più e i social già
+salvati restano. Il logo compare accanto al brand nell'ordine da ufficio e
 nella scheda dell'ordine.
+
+In **modifica** la scheda del brand ha anche il riquadro **Indirizzi**: gli
+indirizzi di consegna e di ritiro che le sue aziende hanno legato a quel brand
+(o a tutti i loro brand). Da qui li correggi: etichetta, indirizzo, civico,
+paese, provincia, città e CAP. *Azienda* e *Vale per* si leggono soltanto e le
+righe non hanno il cestino. Per
+aggiungerne, toglierne o cambiare i brand per cui valgono apri la scheda
+dell'azienda.
 
 Con **Brand** spenta i brand **non si vedono e non si cancellano**: spariscono
 la voce di menu, il riquadro nella scheda dell'azienda, il campo nei
@@ -307,52 +343,57 @@ lavora. La stessa persona può essere referente di più aziende ed è sempre
 **una scheda sola**, con un solo accesso al sito.
 
 Ogni referente è una **scheda richiudibile**: chiusa mostra il nome, il ruolo
-e l'email; un clic sul titolo la apre. Aperta mostra quello che serve di
-solito: la persona, il **Ruolo**, il **Tipo ufficio**, l'email e il telefono
-di lavoro. Referente principale, documenti in copia, accesso all'area clienti
-e brand seguiti stanno in **Altre opzioni**, chiuse finché non servono. Le
-schede si riordinano trascinandole dai **puntini** a sinistra del titolo e si
-tolgono con il cestino.
+e l'ufficio; un clic sul titolo la apre. Aperta ha su una riga la **Persona**
+(nel form di una persona, l'**Azienda**), il **Ruolo** e l'**Ufficio**; sotto,
+i **Contatti aziendali**. Non ci sono altre opzioni da aprire. Le schede si
+riordinano trascinandole dai **puntini** a sinistra del titolo e si tolgono
+con il cestino.
 
-Per ogni riga cerca la scheda nella tendina scrivendo una parte del nome. Se la
-persona non c'è ancora, lascia la tendina su *Nuova persona* e scrivi **Nome** e
-**Cognome** nella riga: al salvataggio la scheda nasce con l'**email di lavoro**
-della riga come sua email. Se il gestionale vende anche alle persone, il
-referente creato così è anche **cliente** e lo trovi nell'elenco dei clienti;
-con *solo aziende* resta referente. In alternativa il **+** accanto alla
-tendina apre una finestra: scrivi nome, cognome ed
-email (o ragione sociale e partita IVA), e la scheda nasce e si seleziona nella
-riga. Prima di crearla si controlla che non esista già: con la stessa **email**
-o la stessa **partita IVA** si seleziona quella che c'è, senza doppioni. Il
-referente nuovo non è né cliente né fornitore; l'azienda nuova è cliente.
-Funziona anche quando crei un cliente o un'azienda nuovi. Poi:
+Per ogni riga cerca la scheda nella tendina scrivendo una parte del nome. Nel
+form di una persona la tendina delle aziende mostra solo la **ragione
+sociale**. Se la persona non c'è ancora, il **+** accanto alla tendina apre
+una finestra: scrivi nome, cognome ed email (o ragione sociale e partita IVA),
+e la scheda nasce e si seleziona nella riga. Prima di crearla si controlla che
+non esista già: con la stessa **email** o la stessa **partita IVA** si
+seleziona quella che c'è, senza doppioni. Il referente nuovo non è né cliente
+né fornitore; l'azienda nuova è cliente. Funziona anche quando crei un cliente
+o un'azienda nuovi. Una riga compilata ma senza persona ferma il salvataggio e
+ti chiede di sceglierla o di svuotarla; una riga del tutto vuota si scarta.
+Poi:
 
-- **Tipo ufficio**: lo stesso campo dei recapiti: uno o più fra
-  *Amministrazione*, *Acquisti*, *Commerciale*, *Tecnico*, *Direzione*, *Altro*
-  e quelli creati da te con il **+**; vuoto vuol dire che si occupa di tutto.
-  Dice a chi mandare i documenti (vedi sotto);
-- **Brand seguiti** — con la funzionalità *Brand*, i brand dell'azienda di cui
-  si occupa; vuoto = tutti;
 - **Ruolo**: scritto a mano, per esempio *Responsabile acquisti*;
-  se manca, sui documenti e nelle tendine compaiono i suoi tipi ufficio;
-- **Referente principale** — è il referente proposto quando fai un preventivo,
-  un ordine da ufficio o un DDT per quell'azienda;
-- **Riceve i documenti** — chi ha questa risposta riceve in copia le email dei
-  documenti. Sui documenti si può scegliere qualsiasi referente;
-- **Email di lavoro**, **Prefisso**, **Telefono di lavoro** — i contatti del
-  referente per quell'azienda (facoltativi). Se c'è l'email di lavoro i
-  documenti di quell'azienda vanno lì e non alla sua email personale; la
-  scheda dell'azienda e l'ordine la mostrano. Non serve mai per accedere al sito.
+  se manca, sui documenti e nelle tendine compare il suo ufficio;
+- **Ufficio**: lo stesso campo dei recapiti, uno solo: *Generale*,
+  *Amministrazione*, *Acquisti*, *Commerciale*, *Tecnico*, *Direzione*,
+  *Altro* e quelli creati da te con il **+**. *Generale*, la prima voce, vuol
+  dire che si occupa di tutto;
+- **Contatti aziendali**: i contatti del referente per quell'azienda
+  (facoltativi). Con il CRM è un elenco: *Aggiungi un contatto* e, per ogni
+  riga, il **Tipo** (*Email*, *Telefono fisso*, *Cellulare*, *WhatsApp*) con
+  l'email oppure prefisso e numero. Senza CRM sono tre campi: **Email
+  aziendale**, **Prefisso** e **Telefono aziendale**. Se c'è un'email
+  aziendale i documenti di quell'azienda vanno alla prima e non alla sua
+  email personale; la scheda dell'azienda e l'ordine la mostrano. Non serve
+  mai per accedere al sito;
+- **Brand seguiti**: con la funzionalità *Brand*, i brand dell'azienda di cui
+  si occupa; vuoto = tutti. Il campo c'è solo se l'azienda ha **più di un
+  brand**;
+- quando fai un preventivo, un ordine da ufficio o un DDT per quell'azienda è
+  proposto il **primo referente** della scheda (con un brand, il primo fra chi
+  lo segue): trascina le righe per cambiare l'ordine. Sui documenti si può
+  scegliere qualsiasi referente.
+
+*Referente principale*, *Riceve i documenti* e *Accesso all'area clienti* non
+sono più nel form: il referente proposto è il primo, e in copia va quello
+scelto sul documento (vedi sotto).
 
 ### A chi vanno in copia i documenti
 
 Ogni documento ha la sua area: **preventivo, conferma dell'ordine e DDT** vanno
 a chi si occupa degli **Acquisti**; **proforma, solleciti e pagamenti non
-riusciti degli abbonamenti** a chi si occupa dell'**Amministrazione**. In copia
-va chi **riceve i documenti** e si occupa di quell'area (o di tutto) e segue il
-brand del documento (o tutti), il principale per primo. Se nessuno corrisponde,
-vale la regola di sempre: tutti quelli che ricevono i documenti. Così
-un'azienda per cui non compili le aree non vede cambiare niente.
+riusciti degli abbonamenti** a chi si occupa dell'**Amministrazione**. Dei
+referenti riceve la copia solo quello **scelto sul documento**: nessun altro
+la riceve da solo.
 
 Dell'azienda ricevono le email del suo riquadro *Contatti* che si occupano di
 quell'area (o di tutto); se nessuna corrisponde, la sua email principale, come
@@ -360,12 +401,11 @@ prima. Nessuno riceve lo stesso documento due volte.
 
 - **Preventivo, conferma, DDT**: destinatario l'email del documento (di solito
   quella dell'azienda); in copia le email dell'azienda per gli *Acquisti* (o la
-  principale) e i referenti degli *Acquisti* che ricevono i documenti, all'email
-  di lavoro se ce l'hanno.
+  principale) e il referente del documento, all'email di lavoro se ce l'ha.
 - **Proforma, solleciti e pagamenti non riusciti degli abbonamenti**:
   destinatario la prima email dell'azienda per l'*Amministrazione* (o la
   principale; senza, il referente); in copia le altre email per
-  l'*Amministrazione* e i referenti dell'*Amministrazione*.
+  l'*Amministrazione* e il referente dell'abbonamento.
 
 Le copie vanno all'email del referente **per quell'azienda** (di lavoro, se
 c'è, altrimenti la sua principale): gli altri contatti della persona non
@@ -381,12 +421,15 @@ non cambia i documenti già fatti, che ne conservano il nome.
 Con la funzionalità **Account aziendali** (servono *Vendita online* e
 *Aziende*) una persona
 con l'account sul sito può ordinare anche per le aziende a cui è collegata.
-Lo decide la colonna **Accesso all'area clienti** del riquadro Referenti:
+Lo decide l'**accesso** del referente a quell'azienda, che non si sceglie più
+nel riquadro Referenti: un referente aggiunto ora nasce con *Ordina* (se lo
+aggiunge un commerciale che vede solo le sue aziende, con *Nessuno*); un
+referente già salvato tiene l'accesso che aveva.
 
-- **Nessuno** — la persona compra solo per sé;
-- **Ordina** — nel checkout sceglie in **Acquista come** se comprare per sé o
+- **Nessuno**: la persona compra solo per sé;
+- **Ordina**: nel checkout sceglie in **Acquista come** se comprare per sé o
   per l'azienda;
-- **Gestisce l'azienda** — come *Ordina*, e nell'area clienti vede anche gli
+- **Gestisce l'azienda**: come *Ordina*, e nell'area clienti vede anche gli
   ordini e gli abbonamenti fatti dagli altri per l'azienda e ne cambia i dati
   di fatturazione nella scheda **La mia azienda**.
 

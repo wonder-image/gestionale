@@ -288,7 +288,8 @@ final class PersoneDiProva extends CustomerResource
 }
 
 check('il doppione dell\'email principale vale anche dal riquadro: nominato a chi lo vede, generico per gli altri', function () use ($commerciale, $ufficio) {
-    $valori = ['name' => 'Anna', 'contact_box_form' => '1', 'contact_points' => [['kind' => 'email', 'email' => 'Anna@Rossi.it', 'is_primary' => 'true']]];
+    // L'email di una persona è il campo «Email di accesso», accanto al riquadro.
+    $valori = ['name' => 'Anna', 'email' => 'Anna@Rossi.it', 'contact_box_form' => '1', 'contact_points' => [['kind' => 'phone', 'phone_prefix' => '+39', 'phone' => '3331234567']]];
     $chiave = static function (object $utente) use ($valori): string {
         try {
             RowVisibility::as($utente, static fn (): array => PersoneDiProva::mutateRequestValues($valori, 'store'));
@@ -300,6 +301,30 @@ check('il doppione dell\'email principale vale anche dal riquadro: nominato a ch
     };
 
     return $chiave($ufficio) === 'contact.email_taken' && $chiave($commerciale) === 'contact.duplicate_hidden';
+});
+
+check('i brand di un\'azienda, anche per chi ne vede solo alcuni: brand e ruolo su una riga, senza «Predefinito»', function () use ($commerciale, $ufficio) {
+    $colonne = static function (object $utente): array {
+        $trovate = [];
+
+        foreach (RowVisibility::as($utente, static fn (): array => CompanyResource::brandFields()) as $campo) {
+            foreach ((array) ($campo->get('context')['columns'] ?? []) as $colonna) {
+                $trovate[$colonna->name] = [(int) ($colonna->columnSpan['default'] ?? 0), (string) $colonna->get('attribute')];
+            }
+        }
+
+        return $trovate;
+    };
+
+    foreach ([$colonne($commerciale), $colonne($ufficio)] as $righe) {
+        // `data-ca-company-brand`: lo script conta i brand per mostrare i «Brand seguiti» dei referenti.
+        if (array_keys($righe) !== ['brand_id', 'role'] || $righe['brand_id'][0] + $righe['role'][0] !== 9
+            || !str_contains($righe['brand_id'][1], 'data-ca-company-brand')) {
+            return false;
+        }
+    }
+
+    return true;
 });
 
 check('i ganci si registrano al boot accanto ai commerciali', function () {

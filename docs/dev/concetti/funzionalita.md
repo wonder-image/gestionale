@@ -189,6 +189,22 @@ kit del brand di customer-account (`CompanyBrands::useKit()`) nel form del
 brand (form, layout, valori e salvataggio: l'elenco non mostra il kit) e nei
 dati che dà l'MCP.
 
+### CRM (`crm`)
+
+«CRM» (`crm`, spenta di serie, nessuna dipendenza, `default_if`
+`Crm::inUse()`: un recapito in più in `contact_points` / `company_points` o i
+social di un brand o di una persona) si legge **solo** da
+`Support\Contacts\Crm::enabled()`. `Crm::apply()` passa lo stato
+all'interruttore di customer-account (`Support\Crm::enable()`), che è quello
+che leggono i suoi form: una Resource lo chiama prima di costruire un form o
+di salvare (`CompanyBrandResource::useKit()` lo fa già). Accesa: più recapiti
+tipizzati (`email`, `phone`, `mobile`, `whatsapp`) per persone, aziende, brand
+e referenti, e i social di brand e persone. Recapiti e social del brand si
+vedono anche con `brand_kit` spenta (`Crm::brandSocials()`,
+`BrandData::CRM_FIELDS`): il resto del kit no. Spenta, i form mostrano un'email e un
+telefono e salvano con `primary_only` (`ContactPoints::syncAll()`,
+`BrandData::clean()`): i recapiti in più e i social restano salvati.
+
 «Gruppi di aziende» (`company_groups`, spenta di serie, richiede `companies`)
 mostra la *Capogruppo* (`CompanyResource::groupsShown()`). Spenta, il campo non
 c'è e `CompanyResource::mutateRequestValues()` toglie `parent_id` prima della

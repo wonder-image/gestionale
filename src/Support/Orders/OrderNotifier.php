@@ -100,7 +100,7 @@ final class OrderNotifier
     }
 
     /**
-     * Documenti d'ufficio: in CC l'azienda e i referenti che li ricevono.
+     * Documenti d'ufficio: in CC l'azienda e il referente scelto sul documento.
      *
      * @param array<string, mixed> $order
      * @return list<string>

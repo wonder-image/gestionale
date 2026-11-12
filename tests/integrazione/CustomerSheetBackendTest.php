@@ -191,6 +191,23 @@ check('un indirizzo si modifica, e il predefinito resta il suo', function () {
     });
 });
 
+check('modificare un indirizzo non azzera un «Presso» già salvato, anche se la finestra non lo manda più', function () {
+    return prova(static function (): bool {
+        $cliente = clienteDiProva();
+        ContactAddressResource::run('save', $cliente, 0, indirizzoValido());
+        $id = (int) indirizziDi($cliente)[0]['id'];
+        sqlModify('contact_addresses', ['business_name' => 'Rossi Srl'], 'id', $id);
+        $esito = ContactAddressResource::run('save', $cliente, $id, indirizzoValido(['street' => 'Via Nuova']));
+        $riga = indirizziDi($cliente)[0];
+        // Nemmeno un valore mandato a mano passa: la finestra non lo scrive.
+        ContactAddressResource::run('save', $cliente, $id, indirizzoValido(['business_name' => '']));
+        $dopo = indirizziDi($cliente)[0];
+
+        return $esito['ok'] === true && $riga['street'] === 'Via Nuova'
+            && ($riga['business_name'] ?? '') === 'Rossi Srl' && ($dopo['business_name'] ?? '') === 'Rossi Srl';
+    });
+});
+
 check('eliminare un indirizzo lo toglie dalla scheda ma non dal database, e un altro predefinito prende il suo posto', function () {
     return prova(static function (): bool {
         $cliente = clienteDiProva();

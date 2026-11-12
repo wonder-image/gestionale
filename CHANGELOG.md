@@ -34,6 +34,24 @@ versionamento semantico.
   ruolo `warehouse` e alle sedi dell'azienda dal pannello ordine.
 
 ### Aggiunto
+- **Funzionalità «CRM» (`crm`, spenta di serie).** Accesa: più recapiti per
+  persone, aziende, brand e referenti, ognuno con il «Tipo» (Email, Telefono
+  fisso, Cellulare, WhatsApp) e, per aziende, brand e referenti, l'«Ufficio»;
+  i social di brand e persone. Spenta: un'email e un telefono soli, niente
+  social; i recapiti in più e i social già salvati restano. Recapiti e social
+  del brand seguono il CRM anche con «Brand kit» spenta
+  (`Support\Contacts\Crm`, `BrandData::CRM_FIELDS` di customer-account).
+  Tabelle e migrazione stanno in customer-account
+  (`CrmContactPointsMigration`).
+- Anagrafiche: con il CRM la scheda in lettura mostra il tipo di ogni recapito
+  e, per una persona, i social con il collegamento (`CustomerSheet::points()`,
+  `CustomerSheet::socials()`). Senza CRM non cambia.
+- **Scheda del brand: gli indirizzi applicati dalle aziende.** In modifica il
+  brand mostra gli indirizzi che le aziende hanno fatto valere per lui e li
+  lascia correggere (nome, via, numero, CAP, città, provincia, paese). Non se
+  ne aggiungono né tolgono da lì; azienda e «Vale per» si leggono soltanto
+  (`CompanyBrandResource::addressesField()`,
+  `CompanyAddresses::updateFromBrand()`).
 - **Catalogo: immagini di categorie, tag e selezioni e logo dei marchi nella
   libreria Media del core** (app#158). Le quattro schede usano il campo media:
   si sceglie un'immagine già in libreria o se ne carica una, e la riga ne
@@ -256,6 +274,13 @@ versionamento semantico.
   (`RowVisibility` vieta `deleted` nelle regole; serve un aiuto del core).
 
 ### Cambiato
+- Anagrafiche: la finestra «Aggiungi indirizzo» della scheda di una persona
+  non chiede più «Presso»; un valore già salvato resta
+  (`ContactAddressResource::FIELDS`).
+- MCP: `customer_get` non dà più `is_primary` e `receives_documents` dei
+  referenti; con il CRM aggiunge `socials` della persona e `points` di ogni
+  referente.
+- **Anagrafiche: «Ufficio» singolo, referenti su una riga, email di accesso a parte.** Rispetto alle voci qui sotto: «Tipo ufficio» si chiama «Ufficio» ed è una scelta singola ovunque, con il «+» per crearne uno e «Generale» come prima voce (vale per tutto). La riga del referente ha Persona, Ruolo e Ufficio su una riga e sotto i «Contatti aziendali»; chiusa mostra nome, ruolo e ufficio. Non ci sono più «Altre opzioni», «Referente principale», «Riceve i documenti», «Accesso all'area clienti» e la «Nuova persona» con Nome e Cognome nella riga: la persona nuova si crea con il «+»; una riga compilata senza persona ferma il salvataggio. Un referente nuovo nasce con accesso «Ordina» (con «Nessuno» se chi lo aggiunge non può dare l'accesso), uno salvato tiene il suo. «Brand seguiti» si vede solo se l'azienda ha più di un brand. Nei brand dell'azienda non c'è più «Predefinito»: resta quello di prima, altrimenti vale il primo. Nelle aziende di una persona la tendina mostra solo la ragione sociale. Per una persona l'email di accesso sta in un campo a parte, fuori dall'elenco dei contatti nel form; nella scheda in lettura resta nell'elenco, come principale. «Indirizzi di consegna e ritiro» diventa «Indirizzi di consegna/ritiro» e «Presso» esce dal form degli indirizzi della scheda (il valore salvato resta; c'è ancora nella finestra dell'indirizzo singolo, `ContactAddressResource`). Il riquadro dei recapiti torna uno solo: con il CRM una riga per recapito con il «Tipo», senza un'email e un telefono.
 - **Il gestionale chiede la versione di `wonder-image/app` con la coda dei
   ridimensionamenti e il campo media** (app#214, la prima dopo
   `2.4.0-beta.7`): usa `ResizeQueue`, `MediaUsages`, `MediaFile` e

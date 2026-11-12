@@ -145,7 +145,8 @@ try {
         node.appendChild(new Option('Nessun referente', '0'));
         (list || []).forEach(function (r) {
             node.appendChild(new Option(r.label, String(r.id)));
-            if (r.is_primary && !primary) {
+            // Proposto il primo della scheda, come `DocumentReferents::defaultFor()`.
+            if (!primary) {
                 primary = r.id;
             }
         });

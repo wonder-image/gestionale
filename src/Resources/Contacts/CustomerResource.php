@@ -34,16 +34,19 @@ use Wonder\Plugin\Gestionale\Resources\Pricing\PriceListResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\CustomerOrderTableResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderItemTableResource;
 use Wonder\Plugin\CustomerAccount\Resources\Concerns\HasContactRelations;
+use Wonder\Plugin\CustomerAccount\Resources\Concerns\HasSocials;
 use Wonder\Plugin\CustomerAccount\Models\ContactRelation;
 use Wonder\Plugin\CustomerAccount\Support\CompanyBrands;
 use Wonder\Plugin\CustomerAccount\Support\ContactExport;
 use Wonder\App\Support\GoogleMaps;
 use Wonder\Plugin\CustomerAccount\Support\ContactPoints;
 use Wonder\Plugin\CustomerAccount\Support\ContactRelations;
+use Wonder\Plugin\CustomerAccount\Support\Socials;
 use Wonder\Plugin\CustomerAccount\Models\CompanyBrand;
 use Wonder\Plugin\Gestionale\Support\Contacts\Brands;
 use Wonder\Plugin\Gestionale\Support\Contacts\ContactExports;
 use Wonder\Plugin\Gestionale\Support\Contacts\ContactVisibility;
+use Wonder\Plugin\Gestionale\Support\Contacts\Crm;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
 use Wonder\Plugin\Gestionale\Support\Contacts\CustomerMode;
 use Wonder\Plugin\Gestionale\Support\Contacts\CustomerSheet;
@@ -78,8 +81,10 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
     use HasContactRelations {
         syncRepeaterRelations as relationsSyncRepeaterRelations;
         contactRelationFields as allContactRelationFields;
-        relationPersonExistsMessage as visiblePersonExistsMessage;
+        contactPeopleField as baseContactPeopleField;
+        contactCompaniesField as baseContactCompaniesField;
     }
+    use HasSocials;
 
     public static string $model = Contact::class;
     public static string $orderColumn = 'id';
@@ -89,7 +94,7 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
     /** Il campo che dice al salvataggio che il form ha mostrato i brand degli indirizzi. */
     public const ADDRESS_BRANDS_MARKER = 'address_brands_form';
 
-    /** Il «+» accanto a «Tipo ufficio» con i permessi dell'area contatti. */
+    /** Il «+» accanto a «Ufficio» con i permessi dell'area contatti. */
     public static function officeTypeResource(): string
     {
         return OfficeTypeResource::class;
@@ -247,8 +252,9 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
 
     public static function formSchema(): array
     {
+        $crm = Crm::apply();
         // Email e telefono stanno nel riquadro «Contatti», non nei campi della fatturazione.
-        $billing = array_diff_key(static::$model::billingFormSchema(), ['phone_prefix' => true, 'phone' => true]);
+        $billing = array_diff_key(static::$model::billingFormSchema(), ['email' => true, 'phone_prefix' => true, 'phone' => true]);
 
         // Un'attività cercata per nome dà la ragione sociale, se è vuota (lo script di customer-account).
         if (isset($billing['business_name'], $billing['street'])) {
@@ -264,8 +270,10 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
                 ->required(),
             FormField::key('note')->textarea()->label('Note'),
             static::addressesField(),
-            // Il riquadro «Contatti» di customer-account, diviso per tipo: un elenco per le email e uno per i telefoni.
-            ...static::contactBoxByKindFields(),
+            // Il riquadro «Contatti» di customer-account: una riga per recapito, o un'email e un telefono soli senza CRM.
+            ...static::contactBoxFields(),
+            // I social di una persona, solo con il CRM.
+            ...(static::socialsShown($crm) ? static::socialFields() : []),
             ...(static::addressBrandsShown() ? [FormField::key(self::ADDRESS_BRANDS_MARKER)->hidden()->value('1')] : []),
         ];
 
@@ -410,6 +418,7 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
 
     public static function formLayoutSchema(): ?Form
     {
+        Crm::apply();
         $ruoli = static::rolesShown();
         $azienda = static::isCompanySide();
         $testo = static fn (string $chiave): string => (string) __t('gestionale.contacts.form.'.$chiave);
@@ -442,20 +451,8 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
             (new Card)->components($chiE)->columns(12)->columnSpan(12),
             // I brand dopo il nome: la scheda comincia da chi è l'azienda.
             ...static::brandCards(),
-            (new Card)->components([
-                $titolo(
-                    $testo($azienda ? 'points_company' : 'points_person'),
-                    $azienda ? (static::relationsShown() ? 'points_company_help' : 'points_company_alone_help') : 'points_person_help'
-                ),
-                // Email e telefoni fianco a fianco, ognuno con il suo «Aggiungi».
-                ...array_map(
-                    static fn (string $key): Input => static::getInput($key)->columnSpan(6),
-                    array_values(static::pointKindInputs())
-                ),
-                static::getInput(static::$boxMarker)->columnSpan(12),
-                // Lo script del riquadro e della ricerca per nome negli indirizzi (customer-account).
-                static::contactFormScript(),
-            ])->columns(12)->columnSpan(12),
+            static::contactsCard(),
+            ...static::socialCards(),
             // I legami stanno subito dopo i recapiti, da tutti e due i lati.
             ...static::relationCards(),
             (new Card)->components([
@@ -465,9 +462,14 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
                     static::getInput('pi')->columnSpan(3),
                     static::getInput('sdi')->columnSpan(2),
                     static::getInput('pec')->columnSpan(4),
-                ] : [static::getInput('cf')->columnSpan(6)]),
-                static::getInput('street')->columnSpan(9),
-                static::getInput('number')->columnSpan(3),
+                    static::getInput('street')->columnSpan(9),
+                    static::getInput('number')->columnSpan(3),
+                ] : [
+                    // Una persona ha solo il codice fiscale: sta sulla riga della via.
+                    static::getInput('cf')->columnSpan(3),
+                    static::getInput('street')->columnSpan(7),
+                    static::getInput('number')->columnSpan(2),
+                ]),
                 static::getInput('country')->columnSpan(3),
                 static::getInput('province')->columnSpan(3),
                 static::getInput('city')->columnSpan(3),
@@ -531,66 +533,121 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
     }
 
     /**
-     * I referenti di un'azienda: la riga chiede chi è, di che ufficio e come
-     * si raggiunge, il resto (documenti, accesso, brand) sta dietro «Altre opzioni».
-     * Parte vuoto: un'azienda senza referenti è normale.
+     * I referenti di un'azienda, con la riga di customer-account: persona,
+     * ruolo e ufficio, sotto i «Contatti aziendali» e i brand seguiti.
+     * Parte vuoto (un'azienda senza referenti è normale); una scheda per
+     * referente, che chiusa mostra nome, ruolo e ufficio.
      */
     protected static function contactPeopleField(): Input
     {
-        return static::relationRepeater(self::RELATION_PEOPLE, ContactRelations::COMPANY, [
-            RepeaterColumn::key('id')->hidden(),
-            static::withRelationQuickCreate(
-                RepeaterColumn::key(ContactRelations::PERSON)
-                    ->selectSearch(['' => static::relationText('new_person')] + static::relationOptions(ContactRelations::COMPANY))
-                    ->label(static::relationText('person'))
-                    ->columnSpan(6),
-                ContactRelations::COMPANY
-            ),
-            // Con il select vuoto la riga crea la persona: nome e cognome qui, email da quella di lavoro.
-            RepeaterColumn::key('new_name')->text()->label(static::relationText('new_person_name'))->columnSpan(3)
-                ->visibleWhen(ContactRelations::PERSON, ''),
-            RepeaterColumn::key('new_surname')->text()->label(static::relationText('new_surname'))->columnSpan(3)
-                ->visibleWhen(ContactRelations::PERSON, ''),
-            RepeaterColumn::key('job_title')->text()->label(static::relationText('job_title'))->columnSpan(6),
-            static::departmentsColumn()->columnSpan(6),
-            RepeaterColumn::key('email')->email()->label('Email')->columnSpan(6),
-            RepeaterColumn::key('phone_prefix')->phonePrefix()->label(static::relationText('work_phone_prefix'))->columnSpan(2),
-            RepeaterColumn::key('phone')->tel()->label('Telefono')->columnSpan(4),
-            ...static::relationFlagColumns(),
-            static::relationBrandsColumn(),
-        ], static::relationText('add_person'))
+        return static::baseContactPeopleField()
             ->repeaterStartEmpty()
-            ->repeaterAdvanced('is_primary', 'receives_documents', 'access', 'brand_ids')
-            ->repeaterAdvancedLabel((string) __t('gestionale.contacts.form.relation_advanced'))
-            // Una scheda per referente: chiusa mostra nome e ruolo.
-            ->repeaterCollapsible([ContactRelations::PERSON, 'new_name', 'new_surname'], ['job_title', 'departments'])
+            ->repeaterCollapsible(ContactRelations::PERSON, ['job_title', 'department'])
             ->repeaterCollapsibleEmptyLabel((string) __t('gestionale.contacts.form.relation_new_person'));
     }
 
-    /** Le aziende di una persona, con la stessa riga corta dei referenti. */
+    /** Le aziende di una persona, con la stessa riga dei referenti. */
     protected static function contactCompaniesField(): Input
     {
-        return static::relationRepeater(self::RELATION_COMPANIES, ContactRelations::PERSON, [
-            RepeaterColumn::key('id')->hidden(),
-            static::withRelationQuickCreate(
-                RepeaterColumn::key(ContactRelations::COMPANY)
-                    ->selectSearch(['' => (string) __t('contacts.option_none_f')] + static::relationOptions(ContactRelations::PERSON))
-                    ->label(static::relationText('company'))
-                    ->columnSpan(6),
-                ContactRelations::PERSON
-            ),
-            RepeaterColumn::key('job_title')->text()->label(static::relationText('job_title'))->columnSpan(6),
-            static::departmentsColumn()->columnSpan(6),
-            RepeaterColumn::key('email')->email()->label(static::relationText('work_email'))->columnSpan(6),
-            RepeaterColumn::key('phone_prefix')->phonePrefix()->label(static::relationText('work_phone_prefix'))->columnSpan(2),
-            RepeaterColumn::key('phone')->tel()->label(static::relationText('work_phone'))->columnSpan(4),
-            ...static::relationFlagColumns(),
-        ], static::relationText('add_company'))
+        return static::baseContactCompaniesField()
             ->repeaterStartEmpty()
-            ->repeaterAdvanced('is_primary', 'receives_documents', 'access')
-            ->repeaterAdvancedLabel((string) __t('gestionale.contacts.form.relation_advanced'))
-            ->repeaterCollapsible(ContactRelations::COMPANY, ['job_title', 'departments'])
+            ->repeaterCollapsible(ContactRelations::COMPANY, ['job_title', 'department'])
             ->repeaterCollapsibleEmptyLabel((string) __t('gestionale.contacts.form.relation_new_company'));
+    }
+
+    /** Le righe del riquadro «Contatti» hanno l'«Ufficio» solo per le aziende. */
+    public static function contactBoxOffice(): bool
+    {
+        return static::isCompanySide();
+    }
+
+    /** L'email di una persona è quella di accesso: sta in un campo a parte, fuori dal riquadro. */
+    public static function separateAccessEmail(): bool
+    {
+        return !static::isCompanySide();
+    }
+
+    /** I social: solo per le persone, con il CRM. */
+    protected static function socialsShown(?bool $crm = null): bool
+    {
+        return !static::isCompanySide() && ($crm ?? Crm::apply());
+    }
+
+    /** La persona aperta ha un account sul sito: la sua email di accesso non si cambia da qui. */
+    protected static function accessEmailLocked(): bool
+    {
+        $id = (int) (static::currentId() ?? 0);
+
+        if ($id <= 0 || !static::hasAccount()) {
+            return false;
+        }
+
+        try {
+            $row = static::$model::findById($id);
+        } catch (Throwable) {
+            return false;
+        }
+
+        return is_array($row) && ContactPoints::lockedEmail(static::contactPointOwner(), $row) !== null;
+    }
+
+    /**
+     * La card dei recapiti. Con il CRM un riquadro solo, una riga per
+     * recapito; senza, un'email e un telefono su una riga. Per una persona
+     * l'email di accesso sta prima, a parte: bloccata se ha un account.
+     */
+    protected static function contactsCard(): Card
+    {
+        $azienda = static::isCompanySide();
+        $testo = static fn (string $chiave): string => (string) __t('gestionale.contacts.form.'.$chiave);
+        $aiuto = $azienda
+            ? $testo(static::relationsShown() ? 'points_company_help' : 'points_company_alone_help')
+            : $testo('points_person_help').' '.(string) __t('contacts.access_email_help');
+        $semplice = static::contactBoxSimple();
+        $campi = [];
+
+        // L'email: di accesso per una persona (bloccata se ha un account), l'unica dell'azienda senza CRM.
+        if ($semplice || static::separateAccessEmail()) {
+            $email = static::getInput('email');
+
+            if (static::separateAccessEmail() && static::accessEmailLocked()) {
+                $email = $email->readonly();
+            }
+
+            $campi[] = $email->columnSpan($semplice ? 6 : 12);
+        }
+
+        if ($semplice) {
+            $campi[] = static::getInput('phone_prefix')->columnSpan(2);
+            $campi[] = static::getInput('phone')->columnSpan(4);
+        } else {
+            // Il titolo della card dice già cosa sono: niente etichetta doppia.
+            $campi[] = static::getInput(static::$pointsInput)->label('')->columnSpan(12);
+        }
+
+        return (new Card)->components([
+            SectionTitle::make($testo($azienda ? 'points_company' : 'points_person'))->tooltip($aiuto)->columnSpan(12),
+            ...$campi,
+            static::getInput(static::$boxMarker)->columnSpan(12),
+            // Lo script del riquadro e della ricerca per nome negli indirizzi (customer-account).
+            static::contactFormScript(),
+        ])->columns(12)->columnSpan(12);
+    }
+
+    /** La card «Social» di una persona, con il CRM. @return list<Card> */
+    protected static function socialCards(): array
+    {
+        if (!static::socialsShown()) {
+            return [];
+        }
+
+        return [
+            (new Card)->components([
+                SectionTitle::make((string) __t('contacts.person_socials'))->columnSpan(12),
+                static::getInput(static::$socialsInput)->label('')->columnSpan(12),
+                static::getInput(static::$socialsMarker)->columnSpan(12),
+            ])->columns(12)->columnSpan(12),
+        ];
     }
 
     /** La card «Brand», subito dopo il nome: solo le aziende ne hanno. */
@@ -622,6 +679,8 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
                 // Il form dichiara un solo repeater, quello del lato della scheda
                 static::getInput($company ? self::RELATION_PEOPLE : self::RELATION_COMPANIES)->columnSpan(12),
                 static::getInput(self::RELATION_MARKER)->columnSpan(12),
+                // Dice alle righe se l'azienda ha più di un brand (i «Brand seguiti»).
+                ...($company ? [static::getInput(self::RELATION_BRANDS_MANY)->columnSpan(12)] : []),
             ])->columns(12)->columnSpan(12),
         ];
     }
@@ -746,16 +805,6 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
      * Una persona creata da una riga dei referenti è anche cliente quando il
      * gestionale vende alle persone; in modo «solo aziende» resta referente.
      */
-    /** Una persona che chi scrive non vede non si nomina. */
-    protected static function relationPersonExistsMessage(array $person, string $email): string
-    {
-        if (ContactVisibility::visibleIds(Contact::$table, [(int) ($person['id'] ?? 0)]) === []) {
-            return UserError::make('contact.duplicate_hidden')->getMessage();
-        }
-
-        return static::visiblePersonExistsMessage($person, $email);
-    }
-
     protected static function relationPersonPayload(array $values): array
     {
         return ['is_customer' => CustomerMode::people() ? 'true' : 'false'] + $values;
@@ -1070,16 +1119,20 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
     /**
      * I contatti della scheda in lettura (`ContactPoints::all()`): principali,
      * email di accesso, altri, con le aree per le aziende. Senza id, o se i
-     * contatti non si leggono, restano i principali della scheda.
+     * contatti non si leggono, restano i principali della scheda. Con il CRM
+     * ogni recapito dice il suo tipo (quello del telefono principale è in
+     * `phone_kind`) e la persona ha sotto i suoi social.
      *
      * @param array<string, mixed> $contact la scheda
      * @return list<\Wonder\Elements\Components\DataItem>
      */
     public static function pointItems(int $id, array $contact = []): array
     {
+        $crm = Crm::enabled();
+        $telefono = $crm && ContactPoints::isPhone($contact['phone_kind'] ?? null) ? (string) $contact['phone_kind'] : ContactPoints::PHONE;
         $primary = [
             ['kind' => ContactPoints::EMAIL, 'value' => (string) ($contact['email'] ?? ''), 'is_primary' => true],
-            ['kind' => ContactPoints::PHONE, 'value' => (string) ($contact['phone'] ?? ''), 'phone_prefix' => (string) ($contact['phone_prefix'] ?? ''), 'is_primary' => true],
+            ['kind' => $telefono, 'value' => (string) ($contact['phone'] ?? ''), 'phone_prefix' => (string) ($contact['phone_prefix'] ?? ''), 'is_primary' => true],
         ];
 
         try {
@@ -1090,7 +1143,25 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
 
         $labels = ContactPoints::labels() + [ContactPoints::ACCESS_LABEL => 'Email di accesso'];
 
-        return CustomerSheet::points($rows, $labels, ContactRelations::departments());
+        $kinds = [];
+
+        foreach ($crm ? ContactPoints::kinds() : [] as $kind) {
+            $kinds[$kind] = ContactPoints::kindLabel($kind);
+        }
+
+        $items = CustomerSheet::points($rows, $labels, ContactRelations::departments(), $kinds);
+
+        // I social sono della persona: le aziende li hanno sui brand.
+        if ($crm && !static::isCompanySide()) {
+            array_push($items, ...CustomerSheet::socials(
+                Socials::of($contact),
+                Socials::networks(),
+                (string) __t('gestionale.contacts.sheet.socials'),
+                (string) __t('gestionale.contacts.sheet.socials_none')
+            ));
+        }
+
+        return $items;
     }
 
     /**
@@ -1117,8 +1188,6 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
             // I contatti per quell'azienda: quelli di lavoro se ci sono, altrimenti (email) quelli della persona.
             $dettaglio = array_filter([
                 trim((string) ($row['job_title'] ?? '')),
-                ($row['is_primary'] ?? 'false') === 'true' ? 'Principale' : '',
-                ($row['receives_documents'] ?? 'false') === 'true' ? 'Riceve i documenti' : '',
                 $azienda ? trim((string) ($row['contact_email'] ?? ($altro['email'] ?? ''))) : trim((string) ($row['work_email'] ?? '')),
                 trim((string) ($row['work_phone_prefix'] ?? '').' '.(string) ($row['work_phone'] ?? '')),
             ]);
@@ -1292,6 +1361,12 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
         string $mode,
         string $context = 'backend'
     ): array {
+        Crm::apply();
+
+        if (static::socialsShown()) {
+            $values = static::withSocialValues($values);
+        }
+
         // Una scheda nuova parte con il prefisso di chi la sta compilando.
         if ($mode !== 'edit' && trim((string) ($values['phone_prefix'] ?? '')) === '') {
             $values['phone_prefix'] = VisitorCountry::phonePrefix();
@@ -1321,8 +1396,16 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
         string $context = 'backend',
         ?array $oldValues = null
     ): array {
+        $crm = Crm::apply();
         $id = (int) ($oldValues['id'] ?? 0);
         $choice = trim((string) ($values['roles'] ?? ''));
+
+        // I social si scrivono solo dove il form li mostra (persone, con il CRM): altrimenti la colonna resta com'è.
+        if (!static::socialsShown($crm)) {
+            unset($values[static::$socialsMarker]);
+        }
+
+        $values = static::applySocials($values);
 
         // Il riquadro «Contatti» rimette il principale in `email`, `phone_prefix`,
         // `phone` prima dei controlli (doppioni compresi); le altre righe le
@@ -1400,6 +1483,8 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
 
         foreach (static::uniqueColumns() as $column => $key) {
             $value = trim((string) ($values[$column] ?? ''));
+            // L'email si salva minuscola: il doppione si cerca così, anche dal campo «Email di accesso».
+            $value = $column === 'email' ? mb_strtolower($value) : $value;
             $duplicate = Contacts::duplicateOf($column, $value, $id > 0 ? $id : null, static::$model);
 
             // Una scheda che chi scrive non vede non si nomina (né se ne dà il codice).
@@ -1426,11 +1511,11 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
 
     /**
      * L'email di accesso di una persona con un account sul sito
-     * (`ContactPoints::lockedEmail()`) non si cambia dal gestionale: il
-     * riquadro «Contatti» la ignora già (`applyContactPoints()` toglie
-     * `email`); un campo singolo (finestra dell'ordine, API) che ne porta
-     * un'altra ferma il salvataggio, la stessa passa e non si riscrive. Le
-     * aziende non hanno account.
+     * (`ContactPoints::lockedEmail()`) non si cambia dal gestionale: il campo
+     * «Email di accesso» del form è bloccato, e un POST (form, finestra
+     * dell'ordine, API) che ne porta un'altra ferma il salvataggio; la stessa
+     * passa e non si riscrive. Senza account si cambia. Le aziende non hanno
+     * account.
      *
      * @param array<string, mixed> $values
      * @param array<string, mixed>|null $oldValues la scheda salvata
@@ -1637,6 +1722,8 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
         string $action = 'store',
         string $context = 'backend'
     ): array {
+        Crm::apply();
+
         if (!static::relationsShown()) {
             unset($post[self::RELATION_MARKER]);
         }
@@ -1676,6 +1763,7 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
      */
     public static function contactRelationFields(): array
     {
+        Crm::apply();
         $fields = static::allContactRelationFields();
 
         if (Brands::enabled()) {
@@ -1699,7 +1787,8 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
         return RepeaterColumn::key('brand_ids')
             ->selectSearch(ContactVisibility::options(CompanyBrand::$table, CompanyBrands::options()), true)
             ->label(static::relationText('relation_brands'))
-            ->columnSpan(12);
+            ->columnSpan(12)
+            ->visibleWhen(self::RELATION_BRANDS_MANY, '1');
     }
 
     /** I brand non vanno al salvataggio della riga dell'indirizzo: non sono una colonna. */
@@ -1733,26 +1822,25 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
             ? [RepeaterColumn::key('brand_ids')->selectSearch(ContactVisibility::options(CompanyBrand::$table, CompanyBrands::options()), true)->label('Brand (vuoto = tutti)')->columnSpan(12)]
             : [];
 
+        // «Presso» (`business_name`) non è nel form: la colonna resta, e una riga salvata senza la chiave tiene il suo valore.
         return FormField::key('addresses')
             ->repeater([
                 RepeaterColumn::key('id')->hidden(),
                 RepeaterColumn::key('label')->text()->label('Etichetta')->columnSpan(3),
-                // «Presso»: l'attività o la società a quell'indirizzo (customer-account).
-                RepeaterColumn::key('business_name')->text()->label('Presso')->columnSpan(3),
                 RepeaterColumn::key('name')->text()->label('Nome')->columnSpan(3),
                 RepeaterColumn::key('surname')->text()->label('Cognome')->columnSpan(3),
                 // La riga la ricava places.js dal nome della via: il prefisso dichiarato vale per tutte.
-                // Si cerca anche per nome dell'attività, che riempie «Presso» se è vuoto.
+                // Si cerca anche per nome dell'attività.
                 RepeaterColumn::key('street')->text()->label('Indirizzo o attività')
-                    ->attribute('data-wi-place="addresses[][" data-wi-place-names data-ca-place-name="business_name"')->columnSpan(8),
+                    ->attribute('data-wi-place="addresses[][" data-wi-place-names')->columnSpan(5),
                 RepeaterColumn::key('number')->text()->label('Civico')->columnSpan(2),
                 RepeaterColumn::key('is_default')
                     ->select(['false' => 'No', 'true' => 'Sì'])
                     ->label('Predefinito')
                     ->columnSpan(2),
-                RepeaterColumn::key('country')->country('province')->value('IT')->label('Paese')->columnSpan(3),
-                RepeaterColumn::key('province')->states('IT')->label('Provincia')->columnSpan(3),
-                RepeaterColumn::key('city')->text()->label('Città')->columnSpan(4),
+                RepeaterColumn::key('country')->country('province')->value('IT')->label('Paese')->columnSpan(2),
+                RepeaterColumn::key('province')->states('IT')->label('Provincia')->columnSpan(2),
+                RepeaterColumn::key('city')->text()->label('Città')->columnSpan(3),
                 RepeaterColumn::key('cap')->text()->label('CAP')->columnSpan(2),
                 // Place ID e coordinate li scrive Google: nascosti, ripuliti in `prepareRepeaterRelationRow()`.
                 RepeaterColumn::key('place_id')->hidden(),
