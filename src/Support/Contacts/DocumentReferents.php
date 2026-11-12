@@ -77,7 +77,7 @@ final class DocumentReferents
      * (o di tutto, o è «Generale») e segue il brand (o tutti), nell'ordine
      * della scheda. Nessuno così: tutti i referenti.
      *
-     * @return list<array{id: int, name: string, email: string, phone: string, job_title: string, departments: list<string>, role: string, is_primary: bool}>
+     * @return list<array{id: int, name: string, email: string, phone: string, job_title: string, departments: list<string>, role: string, is_primary: bool, is_legal_representative: bool}>
      */
     public static function recipients(int $companyId, string $document = '', int $brandId = 0): array
     {
@@ -97,7 +97,7 @@ final class DocumentReferents
     /**
      * Tutti i referenti dell'azienda, senza guardare area e brand: come `people()`.
      *
-     * @return list<array{id: int, name: string, email: string, phone: string, job_title: string, departments: list<string>, role: string, is_primary: bool}>
+     * @return list<array{id: int, name: string, email: string, phone: string, job_title: string, departments: list<string>, role: string, is_primary: bool, is_legal_representative: bool}>
      */
     public static function options(int $companyId): array
     {
@@ -107,7 +107,7 @@ final class DocumentReferents
     /**
      * Tutte le persone legate all'azienda: fra queste si sceglie il referente.
      *
-     * @return list<array{id: int, name: string, email: string, phone: string, job_title: string, departments: list<string>, role: string, is_primary: bool}>
+     * @return list<array{id: int, name: string, email: string, phone: string, job_title: string, departments: list<string>, role: string, is_primary: bool, is_legal_representative: bool}>
      */
     public static function people(int $companyId): array
     {
@@ -115,10 +115,24 @@ final class DocumentReferents
     }
 
     /**
+     * I rappresentanti legali dell'azienda, nell'ordine della scheda: chi
+     * firma un contratto, un mandato o una privacy. Nessuno indicato: vuoto.
+     *
+     * @return list<array{id: int, name: string, email: string, phone: string, job_title: string, departments: list<string>, role: string, is_primary: bool, is_legal_representative: bool}>
+     */
+    public static function legalRepresentatives(int $companyId): array
+    {
+        return array_values(array_filter(
+            self::read($companyId),
+            static fn (array $person): bool => $person['is_legal_representative']
+        ));
+    }
+
+    /**
      * Con `$brandId` solo chi segue quel brand o tutti i brand, con `$area`
      * solo chi se ne occupa o si occupa di tutto (`ContactRelations::peopleFor()`).
      *
-     * @return list<array{id: int, name: string, email: string, phone: string, job_title: string, departments: list<string>, role: string, is_primary: bool}>
+     * @return list<array{id: int, name: string, email: string, phone: string, job_title: string, departments: list<string>, role: string, is_primary: bool, is_legal_representative: bool}>
      */
     private static function read(int $companyId, int $brandId = 0, string $area = ''): array
     {
@@ -143,7 +157,7 @@ final class DocumentReferents
      * non filtra più: «Riceve i documenti» non si sceglie più.
      *
      * @param list<array<string, mixed>> $rows
-     * @return list<array{id: int, name: string, email: string, phone: string, job_title: string, departments: list<string>, role: string, is_primary: bool}>
+     * @return list<array{id: int, name: string, email: string, phone: string, job_title: string, departments: list<string>, role: string, is_primary: bool, is_legal_representative: bool}>
      */
     public static function fromRows(array $rows, bool $onlyDocuments = true): array
     {
@@ -175,6 +189,7 @@ final class DocumentReferents
                 // Il ruolo, altrimenti gli uffici: è quello che si legge nelle tendine.
                 'role' => $job !== '' ? $job : self::areasLabel($areas),
                 'is_primary' => ($row['is_primary'] ?? 'false') === 'true',
+                'is_legal_representative' => ($row['is_legal_representative'] ?? 'false') === 'true',
             ];
         }
 

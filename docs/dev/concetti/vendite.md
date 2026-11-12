@@ -296,6 +296,12 @@ Tutto passa da `Support\Contacts\DocumentReferents`:
   scheda, altrimenti nessuno; con il brand il primo fra chi segue quel brand
   (`ContactRelations::peopleOf($companyId, $brandId)`), poi il primo di tutti.
   `is_primary` non conta;
+- `legalRepresentatives($companyId)` dà i referenti con la spunta
+  «Rappresentante legale» (`is_legal_representative` sul legame, anche più
+  d'uno), nell'ordine della scheda: è la lettura per chi genera un contratto
+  o un documento da firmare. Ogni voce di `people()` porta
+  `is_legal_representative` (bool). Non cambia né il referente proposto né le
+  copie;
 - `resolve($companyId, $personId)` controlla la persona scelta contro le
   opzioni e dà `customer_id` e `referent_name`. Un id che non è fra le opzioni
   diventa `0` / `''`;

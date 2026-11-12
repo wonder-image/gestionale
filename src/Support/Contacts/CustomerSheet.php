@@ -241,7 +241,9 @@ final class CustomerSheet
      * L'elenco dei legami della scheda: i referenti di un'azienda o le aziende
      * di una persona, ognuno col link alla sua scheda (se c'è) e il dettaglio.
      *
-     * @param list<array{name: string, url: string, detail: string}> $items
+     * `badge` è l'etichetta accanto al nome («Rappresentante legale»).
+     *
+     * @param list<array{name: string, url: string, detail: string, badge?: string}> $items
      */
     public static function relations(array $items, string $empty): string
     {
@@ -253,8 +255,10 @@ final class CustomerSheet
 
         foreach ($items as $item) {
             $name = htmlspecialchars($item['name'], ENT_QUOTES);
+            $badge = trim((string) ($item['badge'] ?? ''));
             $html .= '<li class="list-group-item px-0">'
                 .($item['url'] !== '' ? '<a href="'.htmlspecialchars($item['url'], ENT_QUOTES).'">'.$name.'</a>' : $name)
+                .($badge !== '' ? ' <span class="badge text-bg-light border ms-1">'.htmlspecialchars($badge, ENT_QUOTES).'</span>' : '')
                 .($item['detail'] !== '' ? '<div class="small text-body-secondary">'.htmlspecialchars($item['detail'], ENT_QUOTES).'</div>' : '')
                 .'</li>';
         }

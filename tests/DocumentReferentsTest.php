@@ -291,6 +291,23 @@ check('senza mansione il ruolo sono le aree di cui si occupa', function () use (
         && DocumentReferents::areasLabel([]) === '';
 });
 
+check('i rappresentanti legali: solo chi ha la spunta, nell\'ordine della scheda, anche più d\'uno', function () {
+    DocumentReferents::useReader(fn (): array => [
+        riga(1, ['is_legal_representative' => 'true']),
+        riga(2),
+        riga(3, ['is_legal_representative' => 'true']),
+    ]);
+    $legali = DocumentReferents::legalRepresentatives(10);
+    $tutti = DocumentReferents::people(10);
+    DocumentReferents::useReader(fn (): array => [riga(2)]);
+    $nessuno = DocumentReferents::legalRepresentatives(10);
+    DocumentReferents::useReader(null);
+
+    return array_column($legali, 'id') === [1, 3]
+        && array_column($tutti, 'is_legal_representative') === [true, false, true]
+        && $nessuno === [];
+});
+
 // --- Contatti di lavoro ed email dell'azienda per area ---
 
 check('il referente si scrive all\'email per quell\'azienda (di lavoro se c\'è) con il telefono di lavoro', function () {

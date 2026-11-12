@@ -63,7 +63,7 @@ final class ContactTools
                 'run' => self::customersList(...),
             ],
             'customer_get' => [
-                'description' => 'Legge un cliente per id e `kind` (`person`, predefinito, o `company`): anagrafica, contatti (`contact_points`: tutte le email e i telefoni, i principali per primi con `is_primary`; `label` `access` è l\'email di accesso al sito; per un\'azienda `departments`, le aree a cui va quell\'email, vuota = tutte), dati di fatturazione e indirizzi di spedizione (con `business_name` = presso, `place_id`, `lat`, `lng`). Con i referenti attivi, `people` (per un\'azienda: le persone con ruolo, `departments` = le aree di cui si occupano, vuota = tutte; `email` è quella a cui scrivergli per l\'azienda, di lavoro se c\'è, con `work_email` e `work_phone`) e `companies` (per una persona: le aziende di cui è referente, con i contatti di lavoro). I referenti sono tutti uguali: in copia va solo quello scelto sul documento. '
+                'description' => 'Legge un cliente per id e `kind` (`person`, predefinito, o `company`): anagrafica, contatti (`contact_points`: tutte le email e i telefoni, i principali per primi con `is_primary`; `label` `access` è l\'email di accesso al sito; per un\'azienda `departments`, le aree a cui va quell\'email, vuota = tutte), dati di fatturazione e indirizzi di spedizione (con `business_name` = presso, `place_id`, `lat`, `lng`). Con i referenti attivi, `people` (per un\'azienda: le persone con ruolo, `departments` = le aree di cui si occupano, vuota = tutte; `email` è quella a cui scrivergli per l\'azienda, di lavoro se c\'è, con `work_email` e `work_phone`) e `companies` (per una persona: le aziende di cui è referente, con i contatti di lavoro). `is_legal_representative` dice chi è rappresentante legale di quell\'azienda (anche più d\'uno). Per il resto i referenti sono tutti uguali: in copia va solo quello scelto sul documento. '
                     .($crm ? 'Ogni contatto ha il suo `kind` (`email`, `phone` = telefono fisso, `mobile`, `whatsapp`); una persona ha `socials` (rete => indirizzo) e ogni referente `points`, tutti i suoi recapiti per quell\'azienda (`kind`, `value`, `phone_prefix`, `label`). ' : '')
                     .($brands ? 'Un\'azienda ha anche `brands` (nome, ruolo, predefinito, logo, sito, dominio, descrizione); i suoi indirizzi hanno `brand_ids` (vuota = per tutti) e con `brand_id` vengono prima quelli di quel brand, senza quelli degli altri. ' : '')
                     .'Per un preventivo d\'azienda usa `company_id` e una persona di `people` come `customer_id`.',
@@ -288,6 +288,8 @@ final class ContactTools
                 // Le aree di cui si occupa (vuota = tutte), con le etichette da leggere.
                 'departments' => $areas = ContactRelations::cleanDepartments($row['departments'] ?? []),
                 'departments_label' => DocumentReferents::areasLabel($areas),
+                // Rappresentante legale di quell'azienda: può essercene più d'uno.
+                'is_legal_representative' => ($row['is_legal_representative'] ?? 'false') === 'true',
             ];
 
             if ($crm) {
