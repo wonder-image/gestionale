@@ -91,23 +91,12 @@ final class ImageSizes
     public static function handOver(string $absolutePath): bool
     {
         try {
-            $path = ResizeQueue::relative($absolutePath);
-            $store = ResizeQueue::store();
-
-            if ($path === null || !$store->usable()) {
+            if (!ResizeQueue::store()->usable()) {
                 return false;
             }
 
-            if ($store->find($path) === null) {
-                $store->put($path, [
-                    'widths' => self::widths(),
-                    'webp' => self::webp(),
-                    'quality' => null,
-                    'delete' => [],
-                ], ResizeQueue::time(time()));
-            }
-
-            return true;
+            return ResizeQueue::status($absolutePath) !== null
+                || ResizeQueue::enqueue($absolutePath, self::widths(), self::webp(), withoutScheduler: true);
         } catch (Throwable) {
             return false;
         }

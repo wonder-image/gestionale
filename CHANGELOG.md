@@ -54,11 +54,11 @@ versionamento semantico.
     in `CatalogMediaPlan`): per ogni riga con un file crea un media del tipo
     giusto copiando il file in libreria (l'originale resta, niente si
     sovrascrive), scrive l'id, svuota la colonna di prima e registra
-    l'utilizzo, tutto in una transazione. **Dove il core arriva insieme al
-    modulo servono due `php forge update`**: al primo le tabelle del core non
-    ci sono ancora. Fino ad allora, e per le righe che non si riescono a
-    migrare (elencate nel resoconto dell'update), il sito legge il file di
-    prima.
+    l'utilizzo, tutto in una transazione. Gira dopo l'allineamento delle
+    tabelle (`database.migrations_after_tables`), quindi basta un
+    `php forge update` anche dove il core arriva insieme al modulo. Per le
+    righe che non si riescono a migrare (elencate nel resoconto dell'update)
+    il sito legge il file di prima.
   - **Deprecate** le colonne file `image`, `background` e `logo`: restano
     nelle tabelle, fuori dai form, lette solo come ripiego. **Chi le leggeva a
     mano nel codice di un sito (`$categoria['image']`) dopo la migrazione le
@@ -263,8 +263,7 @@ versionamento semantico.
   `^2.4.0-beta.8`, il numero atteso; **`composer.json` resta a
   `^2.4.0-beta.6 || dev-main` finché quella versione non è rilasciata** e va
   alzato allora, con il lock (vedi il commento in `tests/ManifestTest.php`).
-  **Chi aggiorna deve avere il core a quella versione**, e lanciare
-  `php forge update` due volte se core e modulo arrivano insieme.
+  **Chi aggiorna deve avere il core a quella versione.**
 - **Immagini dei prodotti: le misure le genera la coda del core** (app#158).
   Una coda sola, un task solo, un comando solo: `Support\Catalog\ImageQueue`
   e `Unavailable` non ci sono più. Il campo di `ProductImage` non dichiara più

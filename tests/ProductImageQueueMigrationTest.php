@@ -11,7 +11,7 @@ use Wonder\Plugin\Gestionale\Migrations\ProductImageQueueMigration as Migration;
 use Wonder\Plugin\Gestionale\Support\Catalog\ImageSizes;
 
 check('è dichiarata nel manifest', function () {
-    $migrazioni = (array) (json_decode((string) file_get_contents(__DIR__.'/../module.json'), true)['database']['migrations'] ?? []);
+    $migrazioni = (array) (json_decode((string) file_get_contents(__DIR__.'/../module.json'), true)['database']['migrations_after_tables'] ?? []);
 
     return in_array(Migration::class, $migrazioni, true);
 });
