@@ -121,7 +121,7 @@ class CompanyBrandResource extends BaseCompanyBrandResource
      * Gli indirizzi che valgono per il brand: gli stessi campi del repeater
      * dell'azienda (`CustomerResource::addressesField()`), senza «Presso»,
      * nome e predefinito, che restano come sono. L'azienda e «Vale per» si
-     * leggono soltanto; le righe non si aggiungono.
+     * leggono soltanto; le righe non si aggiungono né si tolgono.
      */
     protected static function addressesField(): Input
     {
@@ -149,6 +149,8 @@ class CompanyBrandResource extends BaseCompanyBrandResource
             ->nested()
             ->repeaterStartEmpty()
             ->repeaterAddButton(false)
+            // Togliere la riga qui non cancella l'indirizzo: niente cestino.
+            ->repeaterDeleteButton(false)
             ->label('');
     }
 

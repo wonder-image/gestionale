@@ -61,6 +61,10 @@
             "city": "Città",
             "cap": "CAP"
         },
+        "sheet": {
+            "socials": "Social",
+            "socials_none": "Nessun social"
+        },
         "groups": {
             "title": "Gruppo",
             "tooltip": "L'azienda a capo del gruppo di cui fa parte questa: un livello solo, una capogruppo non ha a sua volta una capogruppo."

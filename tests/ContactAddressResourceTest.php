@@ -194,23 +194,23 @@ check('la finestra ha l\'aiuto di Google sulla via e place ID e coordinate nasco
         && str_contains($html, 'GEO=["place_id","lat","lng"]');
 });
 
-check('l\'azienda è facoltativa e si tiene, tagliata come gli altri campi', function () use ($valido) {
+check('«Presso» non passa più dalla finestra: il salvataggio non lo tocca, nemmeno se arriva', function () use ($valido) {
     $con = ContactAddressResource::clean([...$valido, 'business_name' => '  Rossi Srl  ']);
 
-    return $con['business_name'] === 'Rossi Srl'
-        && ContactAddressResource::problem($con) === null
-        && ContactAddressResource::problem(ContactAddressResource::clean($valido)) === null;
+    return !array_key_exists('business_name', $con)
+        && !array_key_exists('business_name', ContactAddressResource::clean($valido))
+        && !array_key_exists('business_name', ContactAddressResource::FIELDS)
+        && ContactAddressResource::problem($con) === null;
 });
 
-check('la finestra cerca anche per nome dell\'attività, che riempie «Presso»; lo script di customer-account c\'è', function () {
+check('la finestra non chiede «Presso»; cerca ancora per nome dell\'attività e ha lo script di customer-account', function () {
     $html = ContactAddressResource::modals(12);
     $via = preg_match('/<input[^>]*name="street"[^>]*>/', $html, $m) === 1 ? $m[0] : '';
-    $codice = (string) file_get_contents(__DIR__.'/../src/Resources/Contacts/ContactAddressResource.php');
 
-    return str_contains($via, 'data-wi-place-names') && str_contains($via, 'data-ca-place-name="business_name"')
-        && str_contains($html, 'Presso') && str_contains($html, 'window.caContactForm')
-        // Anche le sedi di un'azienda tengono «Presso».
-        && !str_contains($codice, "unset(\$clean['business_name'])");
+    return str_contains($via, 'data-wi-place-names') && !str_contains($via, 'data-ca-place-name')
+        && !str_contains($html, 'Presso') && !str_contains($html, 'name="business_name"')
+        && !str_contains($html, '"business_name"')
+        && str_contains($html, 'window.caContactForm');
 });
 
 summary();

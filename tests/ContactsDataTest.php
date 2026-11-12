@@ -320,6 +320,43 @@ check('nella scheda in lettura tutti i contatti, escapati: principale, email di 
         && str_contains($senzaId[0]->render('bootstrap'), 'anna@example.com');
 });
 
+check('con «CRM» la scheda in lettura dice il tipo di ogni recapito e i social della persona; senza resta com\'era', function () use ($forza) {
+    $scheda = ['email' => 'anna@example.com', 'phone' => '3331234567', 'phone_prefix' => '+39', 'phone_kind' => 'mobile',
+        'socials' => '{"instagram":"https://www.instagram.com/anna/","linkedin":"https://linkedin.com/in/anna"}'];
+    $html = static fn (array $voci): string => implode('', array_map(static fn ($voce): string => $voce->render('bootstrap'), $voci));
+
+    $forza(['private_customers' => true, 'companies' => true]);
+    $spento = CustomerResource::pointItems(0, $scheda);
+    $forza(['private_customers' => true, 'companies' => true, 'crm' => true]);
+    $persona = $html(CustomerResource::pointItems(0, $scheda));
+    $azienda = CompanyResource::pointItems(0, $scheda);
+    $vuota = $html(CustomerResource::pointItems(0, ['email' => 'anna@example.com']));
+    $forza(null);
+    $tipi = $html(CustomerSheet::points([
+        ['kind' => 'whatsapp', 'value' => '3330000000', 'phone_prefix' => '+39', 'label' => 'work'],
+        ['kind' => 'phone', 'value' => '021234567', 'phone_prefix' => '+39'],
+    ], ['work' => 'Lavoro'], [], ['whatsapp' => 'WhatsApp', 'phone' => 'Telefono fisso']));
+    // Chi stampa non si fida di quello che legge: solo http(s), tutto escapato.
+    $sporchi = $html(CustomerSheet::socials(
+        ['x' => 'javascript:alert(1)', 'facebook' => 'https://facebook.com/a"><b>', 'mia' => 'https://example.com/<i>'],
+        ['facebook' => 'Face<b>book'], 'Social', 'Nessun social'
+    ));
+
+    return count($spento) === 1 && !str_contains($html($spento), 'Cellulare') && !str_contains($html($spento), 'Social')
+        && str_contains($persona, 'anna@example.com <span class="text-muted">· Email · principale')
+        && str_contains($persona, '+39 3331234567 <span class="text-muted">· Cellulare · principale')
+        && str_contains($persona, 'Social')
+        && preg_match('#<a[^>]*href="https://www\.instagram\.com/anna/"[^>]*>instagram\.com/anna</a> <span class="text-muted">· Instagram#', $persona) === 1
+        && str_contains($persona, 'target="_blank"') && str_contains($persona, 'rel="noopener"')
+        && str_contains($persona, '>linkedin.com/in/anna</a> <span class="text-muted">· LinkedIn')
+        && !str_contains($sporchi, 'javascript:') && !str_contains($sporchi, '<b>') && !str_contains($sporchi, '<i>')
+        && str_contains($sporchi, 'Face&lt;b&gt;book') && str_contains($sporchi, '· mia')
+        && count($azienda) === 1 && str_contains($html($azienda), 'Cellulare')
+        && str_contains($vuota, 'Nessun social') && str_contains($vuota, 'Email · principale')
+        && str_contains($tipi, '+39 3330000000 <span class="text-muted">· WhatsApp · Lavoro')
+        && str_contains($tipi, '+39 021234567 <span class="text-muted">· Telefono fisso');
+});
+
 check('la scheda del referente legge gli altri contatti come quella del cliente', function () {
     $codice = (string) file_get_contents(__DIR__.'/../src/Resources/Contacts/CustomerResource.php');
     $referente = substr($codice, (int) strpos($codice, 'function referentLayoutSchema'), 1500);
@@ -382,6 +419,17 @@ check('scheda del brand: il riquadro «Indirizzi» solo in modifica, senza «Pre
     \Wonder\App\Theme::set('bootstrap');
     $html = \Wonder\Backend\Support\ResourceFormLayoutRenderer::renderLayout($carte[1]);
     \Wonder\App\Theme::set($tema);
+    // Con una riga: i campi ci sono, il cestino no (toglierla non cancellerebbe niente).
+    // Paese e provincia leggono gli elenchi dal database: qui si lasciano fuori.
+    $campoRighe = (new ReflectionMethod(CompanyBrandResource::class, 'addressesField'))->invoke(null);
+    $righe = $campoRighe
+        ->columns(array_values(array_filter(
+            (array) ($campoRighe->get('context')['columns'] ?? []),
+            static fn ($colonna): bool => !in_array((string) $colonna->name, ['country', 'province'], true)
+        )))
+        ->value(['row_1' => ['id' => 1, 'label' => 'Sede', 'street' => 'Via Roma']])
+        ->render('bootstrap');
+    $righe = substr($righe, 0, (int) strpos($righe, '<script'));
     $valori = CompanyBrandResource::mutateFormValues(['id' => 7, 'name' => 'La Piana'], 'edit');
     // In creazione, e senza il segnaposto, il salvataggio non tocca gli indirizzi.
     $creato = CompanyBrandResource::syncRepeaterRelations(8, [CompanyBrandResource::ADDRESSES_MARKER => '1', CompanyBrandResource::ADDRESSES_INPUT => [['id' => 1, 'label' => 'x']]], [], 'store');
@@ -400,6 +448,9 @@ check('scheda del brand: il riquadro «Indirizzi» solo in modifica, senza «Pre
         && in_array(CompanyBrandResource::ADDRESSES_INPUT, $modifica, true) && in_array(CompanyBrandResource::ADDRESSES_MARKER, $modifica, true)
         && $colonne === ['id', 'company_name', 'scope', 'label', 'street', 'number', 'country', 'province', 'city', 'cap', 'place_id', 'lat', 'lng']
         && ($aggiungi['nested'] ?? false) === true && ($aggiungi['add_button'] ?? true) === false
+        && ($aggiungi['delete_button'] ?? true) === false
+        && str_contains($righe, 'name="brand_addresses[row_1][label]"') && str_contains($righe, 'value="Via Roma"')
+        && str_contains($righe, '</template>') && !str_contains($righe, 'wi-repeater-delete') && !str_contains($righe, 'wiRepeaterRemoveRow') && !str_contains($righe, 'wiRepeaterAddRow')
         && count($carte) === 2
         && str_contains($html, 'Indirizzi') && str_contains($html, 'si aggiungono dalla scheda dell') && !str_contains($html, 'brand_addresses[')
         && !str_contains($html, '—') && !str_contains($html, '<wi-card')
@@ -443,6 +494,24 @@ check('customer_get espone aree, altri contatti, brand e sedi per brand, con lo 
         && $tool['permission'] === [CustomerResource::class, 'view'] && $tool['write'] === false
         && !str_contains(json_encode($senzaBrand['schema']), 'brand_id') && !str_contains($senzaBrand['description'], 'brand')
         && str_contains($senzaBrand['description'], 'departments');
+});
+
+check('customer_get non dice più chi è il referente principale o chi riceve i documenti; con «CRM» ha tipi, recapiti dei referenti e social', function () use ($forza) {
+    $forza(['private_customers' => true, 'companies' => true]);
+    $senza = ContactTools::all()['customer_get']['description'];
+    $forza(['private_customers' => true, 'companies' => true, 'crm' => true]);
+    $con = ContactTools::all()['customer_get']['description'];
+    $forza(null);
+    $codice = (string) file_get_contents(__DIR__.'/../src/Support/Mcp/ContactTools.php');
+    $legami = substr($codice, (int) strpos($codice, 'private static function relations'));
+
+    return !str_contains($senza, 'riceve i documenti') && !str_contains($senza, 'principale, ')
+        && !str_contains($codice, 'receives_documents') && !str_contains($legami, 'is_primary')
+        // `is_primary` resta sui recapiti della scheda.
+        && str_contains($senza, 'is_primary') && str_contains($codice, "'is_primary' => !empty(\$point['is_primary'])")
+        && !str_contains($senza, 'socials') && !str_contains($senza, '`points`')
+        && str_contains($con, 'socials') && str_contains($con, '`points`') && str_contains($con, 'whatsapp')
+        && str_contains($legami, "\$legame['points']") && str_contains($codice, "\$customer['socials'] = Socials::of(\$row)");
 });
 
 // --- Riquadro, fatturazione e finestre dell'ordine ---

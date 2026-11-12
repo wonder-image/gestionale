@@ -405,6 +405,12 @@ i campi singoli passano come prima. La finestra «Contatti» dell'ordine si fa i
 suoi campi (`email` non è più un campo della scheda). Le schede in lettura
 mostrano `ContactPoints::all()` (`CustomerResource::pointItems()`,
 `CustomerSheet::points()`): principale, «Email di accesso», etichette e aree.
+Con il CRM `pointItems()` passa a `points()` anche i nomi dei tipi
+(`ContactPoints::kindLabel()`; per il telefono della scheda senza righe vale
+`phone_kind`) e, per una persona, aggiunge i social con
+`CustomerSheet::socials()`: una voce sola, un `Link` per rete che si apre in
+un'altra scheda (`rel="noopener"`). Le aziende li hanno sui brand. Senza CRM
+la scheda è quella di prima.
 
 Il repeater dei referenti ha le colonne di lavoro del trait
 (`workContactColumns()`): con il CRM il repeater interno `points` («Contatti
@@ -423,11 +429,12 @@ nascosti nel layout (e nelle finestre dell'ordine, `BILLING_KEYS`), ripuliti
 con `GoogleMaps::cleanGeo()` solo se arrivano; sulla via delle aziende
 `data-ca-place-name="business_name"`. Il repeater degli indirizzi e la
 finestra di `ContactAddressResource` hanno la ricerca per nome
-(`data-wi-place-names`, `data-ca-place-name`) e place ID e coordinate (nel
-repeater colonne nascoste, ripulite in `prepareRepeaterRelationRow()`).
-«Presso» (`business_name`) è rimasto solo nella finestra: il repeater non lo
-mostra più, la colonna resta e una riga salvata senza la chiave tiene il suo
-valore. Place ID e coordinate arrivano dal
+(`data-wi-place-names`) e place ID e coordinate (nel repeater colonne
+nascoste, ripulite in `prepareRepeaterRelationRow()`). «Presso»
+(`business_name`) non lo chiede più nessuno dei due: non è tra i `FIELDS`
+della finestra e la via non ha più `data-ca-place-name`. La colonna resta e
+una riga salvata senza la chiave tiene il suo valore (`Model::update()` scrive
+solo le chiavi che riceve). Place ID e coordinate arrivano dal
 browser e non decidono niente. L'ordine copia dalla sede `shipping_place_id`,
 `shipping_lat`, `shipping_lng` (`shippingKeys()`); la fatturazione dell'ordine
 non ha colonne geo e non ne prende.

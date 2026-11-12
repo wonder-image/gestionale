@@ -7,6 +7,7 @@ use Wonder\Plugin\CustomerAccount\Support\BrandData;
 use Wonder\Plugin\CustomerAccount\Support\CompanyBrands;
 use Wonder\Plugin\CustomerAccount\Support\ContactPoints;
 use Wonder\Plugin\CustomerAccount\Support\ContactRelations;
+use Wonder\Plugin\CustomerAccount\Support\Socials;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
@@ -15,6 +16,7 @@ use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
 use Wonder\Plugin\Gestionale\Support\Contacts\Brands;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
 use Wonder\Plugin\Gestionale\Support\Contacts\ContactVisibility;
+use Wonder\Plugin\Gestionale\Support\Contacts\Crm;
 use Wonder\Plugin\Gestionale\Support\Contacts\CustomerMode;
 use Wonder\Plugin\Gestionale\Support\Contacts\DocumentReferents;
 use Wonder\Plugin\Gestionale\Support\Sales\OfficeCustomerPanel;
@@ -44,6 +46,8 @@ final class ContactTools
     {
         // I brand solo con «Brand»: spenta, né nella descrizione né nei parametri.
         $brands = Brands::enabled();
+        // Tipi dei recapiti, recapiti dei referenti e social solo con «CRM».
+        $crm = Crm::enabled();
 
         return [
             'customers_list' => [
@@ -59,7 +63,8 @@ final class ContactTools
                 'run' => self::customersList(...),
             ],
             'customer_get' => [
-                'description' => 'Legge un cliente per id e `kind` (`person`, predefinito, o `company`): anagrafica, contatti (`contact_points`: tutte le email e i telefoni, i principali per primi con `is_primary`; `label` `access` è l\'email di accesso al sito; per un\'azienda `departments`, le aree a cui va quell\'email, vuota = tutte), dati di fatturazione e indirizzi di spedizione (con `business_name` = presso, `place_id`, `lat`, `lng`). Con i referenti attivi, `people` (per un\'azienda: le persone con ruolo, `departments` = le aree di cui si occupano, vuota = tutte, principale, riceve i documenti; `email` è quella a cui scrivergli per l\'azienda, di lavoro se c\'è, con `work_email` e `work_phone`) e `companies` (per una persona: le aziende di cui è referente, con i contatti di lavoro). '
+                'description' => 'Legge un cliente per id e `kind` (`person`, predefinito, o `company`): anagrafica, contatti (`contact_points`: tutte le email e i telefoni, i principali per primi con `is_primary`; `label` `access` è l\'email di accesso al sito; per un\'azienda `departments`, le aree a cui va quell\'email, vuota = tutte), dati di fatturazione e indirizzi di spedizione (con `business_name` = presso, `place_id`, `lat`, `lng`). Con i referenti attivi, `people` (per un\'azienda: le persone con ruolo, `departments` = le aree di cui si occupano, vuota = tutte; `email` è quella a cui scrivergli per l\'azienda, di lavoro se c\'è, con `work_email` e `work_phone`) e `companies` (per una persona: le aziende di cui è referente, con i contatti di lavoro). I referenti sono tutti uguali: in copia va solo quello scelto sul documento. '
+                    .($crm ? 'Ogni contatto ha il suo `kind` (`email`, `phone` = telefono fisso, `mobile`, `whatsapp`); una persona ha `socials` (rete => indirizzo) e ogni referente `points`, tutti i suoi recapiti per quell\'azienda (`kind`, `value`, `phone_prefix`, `label`). ' : '')
                     .($brands ? 'Un\'azienda ha anche `brands` (nome, ruolo, predefinito, logo, sito, dominio, descrizione); i suoi indirizzi hanno `brand_ids` (vuota = per tutti) e con `brand_id` vengono prima quelli di quel brand, senza quelli degli altri. ' : '')
                     .'Per un preventivo d\'azienda usa `company_id` e una persona di `people` come `customer_id`.',
                 'schema' => self::schema([
@@ -133,6 +138,12 @@ final class ContactTools
         }
 
         $customer['active'] = (string) ($row['active'] ?? 'true') === 'true';
+
+        // I social sono della persona, e solo col CRM.
+        if (!$company && Crm::enabled()) {
+            $customer['socials'] = Socials::of($row);
+        }
+
         $customer['contact_points'] = self::points($company ? ContactPoints::COMPANY : ContactPoints::CONTACT, $id, $row);
         // Gli indirizzi dell'azienda per brand: un brand che non è suo lascia solo quelli per tutti. Senza «Brand» tutti.
         $brands = $company && Brands::enabled();
@@ -234,7 +245,8 @@ final class ContactTools
 
     /**
      * I legami vivi della scheda (#145): le persone di un'azienda, le aziende
-     * di una persona. Un errore di lettura lascia l'elenco vuoto.
+     * di una persona. Un errore di lettura lascia l'elenco vuoto. Col CRM ogni
+     * legame porta `points`, i recapiti di lavoro uno per uno.
      *
      * @return array<string, list<array<string, mixed>>>
      */
@@ -249,6 +261,7 @@ final class ContactTools
         }
 
         $out = [];
+        $crm = Crm::enabled();
         // Solo le schede che il chiamante vede: le aziende di una persona possono essere di altri commerciali.
         $visible = array_flip(ContactVisibility::visibleIds(
             ($company ? Contact::class : Company::class)::$table,
@@ -264,7 +277,7 @@ final class ContactTools
                 continue;
             }
 
-            $out[] = [
+            $legame = [
                 'id' => (int) ($row[$side] ?? 0),
                 'display_name' => Contacts::displayName($contact),
                 // A chi scrivere per quell'azienda: l'email di lavoro se c'è, altrimenti quella della persona.
@@ -275,9 +288,18 @@ final class ContactTools
                 // Le aree di cui si occupa (vuota = tutte), con le etichette da leggere.
                 'departments' => $areas = ContactRelations::cleanDepartments($row['departments'] ?? []),
                 'departments_label' => DocumentReferents::areasLabel($areas),
-                'is_primary' => ($row['is_primary'] ?? 'false') === 'true',
-                'receives_documents' => ($row['receives_documents'] ?? 'false') === 'true',
             ];
+
+            if ($crm) {
+                $legame['points'] = array_values(array_map(static fn (array $point): array => [
+                    'kind' => (string) ($point['kind'] ?? ''),
+                    'value' => (string) ($point['value'] ?? ''),
+                    'phone_prefix' => (string) ($point['phone_prefix'] ?? ''),
+                    'label' => (string) ($point['label'] ?? ''),
+                ], array_filter((array) ($row['points'] ?? []), 'is_array')));
+            }
+
+            $out[] = $legame;
         }
 
         return [$company ? 'people' : 'companies' => $out];

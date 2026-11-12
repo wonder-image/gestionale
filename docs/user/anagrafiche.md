@@ -179,8 +179,11 @@ di chi è).
   contatti.
 
 La scheda in lettura mostra tutti i contatti, con il principale, l'email di
-accesso e gli uffici. Le finestre *Contatti* dell'ordine da ufficio cambiano solo
-email e telefono principali.
+accesso e gli uffici. Con il **CRM** acceso ogni contatto porta anche il suo
+tipo (Email, Telefono fisso, Cellulare, WhatsApp) e la scheda di una persona
+elenca i suoi **social**: il nome della rete e l'indirizzo, che si apre in
+un'altra scheda del browser. Le finestre *Contatti* dell'ordine da ufficio
+cambiano solo email e telefono principali.
 
 ## Dati di fatturazione
 
@@ -198,12 +201,10 @@ L'indirizzo della scheda è quello **di fatturazione**. Dove si consegna si
 scrive nel riquadro *Indirizzi di consegna*: uno per il magazzino, uno per
 casa, uno per il cantiere. Il **destinatario** è chi il corriere deve cercare,
 e spesso non è chi compra. Nella via si cerca anche il **nome di
-un'attività**: Google completa l'indirizzo. Nel form della scheda il campo
-**Presso** non c'è più: un «presso» già salvato resta sull'indirizzo e non si
-perde quando salvi. Lo trovi ancora nella finestra *Aggiungi indirizzo* della
-scheda di una persona, dove è facoltativo e si riempie da solo, se è vuoto,
-quando scegli un'attività. L'ordine copia dalla sede scelta anche place ID e
-coordinate.
+un'attività**: Google completa l'indirizzo. Il campo **Presso** non c'è più,
+né nel form della scheda né nella finestra *Aggiungi indirizzo* della scheda
+di una persona: un «presso» già salvato resta sull'indirizzo e non si perde
+quando salvi. L'ordine copia dalla sede scelta anche place ID e coordinate.
 
 Gli indirizzi si gestiscono anche dalla **scheda del cliente** (il nome nell'elenco
 la apre): il riquadro *Indirizzi di consegna* mostra una card per indirizzo, con
@@ -305,7 +306,8 @@ nella scheda dell'ordine.
 In **modifica** la scheda del brand ha anche il riquadro **Indirizzi**: gli
 indirizzi di consegna e di ritiro che le sue aziende hanno legato a quel brand
 (o a tutti i loro brand). Da qui li correggi: etichetta, indirizzo, civico,
-paese, provincia, città e CAP. *Azienda* e *Vale per* si leggono soltanto. Per
+paese, provincia, città e CAP. *Azienda* e *Vale per* si leggono soltanto e le
+righe non hanno il cestino. Per
 aggiungerne, toglierne o cambiare i brand per cui valgono apri la scheda
 dell'azienda.
 

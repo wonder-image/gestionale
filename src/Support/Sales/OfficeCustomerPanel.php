@@ -411,7 +411,7 @@ final class OfficeCustomerPanel
         return $contatti->render('bootstrap')
             .$fatturazione->render('bootstrap')
             .$fatturazioneAzienda->render('bootstrap')
-            // Porta anche lo script di customer-account (ricerca per nome, «Presso»).
+            // Porta anche lo script di customer-account (ricerca per nome dell'attività).
             .ContactAddressResource::modals(0);
     }
 

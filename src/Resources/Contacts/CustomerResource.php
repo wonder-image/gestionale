@@ -41,6 +41,7 @@ use Wonder\Plugin\CustomerAccount\Support\ContactExport;
 use Wonder\App\Support\GoogleMaps;
 use Wonder\Plugin\CustomerAccount\Support\ContactPoints;
 use Wonder\Plugin\CustomerAccount\Support\ContactRelations;
+use Wonder\Plugin\CustomerAccount\Support\Socials;
 use Wonder\Plugin\CustomerAccount\Models\CompanyBrand;
 use Wonder\Plugin\Gestionale\Support\Contacts\Brands;
 use Wonder\Plugin\Gestionale\Support\Contacts\ContactExports;
@@ -1118,16 +1119,20 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
     /**
      * I contatti della scheda in lettura (`ContactPoints::all()`): principali,
      * email di accesso, altri, con le aree per le aziende. Senza id, o se i
-     * contatti non si leggono, restano i principali della scheda.
+     * contatti non si leggono, restano i principali della scheda. Con il CRM
+     * ogni recapito dice il suo tipo (quello del telefono principale è in
+     * `phone_kind`) e la persona ha sotto i suoi social.
      *
      * @param array<string, mixed> $contact la scheda
      * @return list<\Wonder\Elements\Components\DataItem>
      */
     public static function pointItems(int $id, array $contact = []): array
     {
+        $crm = Crm::enabled();
+        $telefono = $crm && ContactPoints::isPhone($contact['phone_kind'] ?? null) ? (string) $contact['phone_kind'] : ContactPoints::PHONE;
         $primary = [
             ['kind' => ContactPoints::EMAIL, 'value' => (string) ($contact['email'] ?? ''), 'is_primary' => true],
-            ['kind' => ContactPoints::PHONE, 'value' => (string) ($contact['phone'] ?? ''), 'phone_prefix' => (string) ($contact['phone_prefix'] ?? ''), 'is_primary' => true],
+            ['kind' => $telefono, 'value' => (string) ($contact['phone'] ?? ''), 'phone_prefix' => (string) ($contact['phone_prefix'] ?? ''), 'is_primary' => true],
         ];
 
         try {
@@ -1138,7 +1143,25 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
 
         $labels = ContactPoints::labels() + [ContactPoints::ACCESS_LABEL => 'Email di accesso'];
 
-        return CustomerSheet::points($rows, $labels, ContactRelations::departments());
+        $kinds = [];
+
+        foreach ($crm ? ContactPoints::kinds() : [] as $kind) {
+            $kinds[$kind] = ContactPoints::kindLabel($kind);
+        }
+
+        $items = CustomerSheet::points($rows, $labels, ContactRelations::departments(), $kinds);
+
+        // I social sono della persona: le aziende li hanno sui brand.
+        if ($crm && !static::isCompanySide()) {
+            array_push($items, ...CustomerSheet::socials(
+                Socials::of($contact),
+                Socials::networks(),
+                (string) __t('gestionale.contacts.sheet.socials'),
+                (string) __t('gestionale.contacts.sheet.socials_none')
+            ));
+        }
+
+        return $items;
     }
 
     /**
