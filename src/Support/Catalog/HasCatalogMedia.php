@@ -28,7 +28,7 @@ use Wonder\Sql\TableSchema as Column;
  * **Colonna di prima.** Ogni campo aveva una colonna file con lo stesso nome
  * (`image`, `logo`, `background`). Resta nella tabella, deprecata: la
  * migrazione la svuota quando ha creato il media, quindi una riga che la ha
- * ancora piena è una riga non migrata (prima del secondo `forge update`, o
+ * ancora piena è una riga non migrata (prima di `forge update`, o
  * con un file che non si è potuto copiare), e per quella riga
  * {@see mediaUrl()} ripiega sul file di prima.
  */
