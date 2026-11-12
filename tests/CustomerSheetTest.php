@@ -130,10 +130,12 @@ check('i legami: nome col link alla scheda, dettaglio, escape e frase quando non
     $html = CustomerSheet::relations([
         ['name' => 'Rossi <i>', 'url' => '/backend/clienti/5/', 'detail' => 'CEO · Principale'],
         ['name' => 'Senza scheda', 'url' => '', 'detail' => ''],
+        ['name' => 'Bianchi', 'url' => '', 'detail' => '', 'badge' => 'Rappresentante <legale>'],
     ], 'Nessun referente.');
 
     return str_contains($html, '<a href="/backend/clienti/5/">Rossi &lt;i&gt;</a>') && str_contains($html, 'CEO · Principale')
         && str_contains($html, '>Senza scheda</li>')
+        && substr_count($html, 'class="badge') === 1 && str_contains($html, 'Bianchi <span class="badge text-bg-light border ms-1">Rappresentante &lt;legale&gt;</span>')
         && str_contains(CustomerSheet::relations([], 'Nessun referente.'), 'Nessun referente.');
 });
 

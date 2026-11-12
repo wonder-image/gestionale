@@ -1198,6 +1198,7 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
                     : (trim((string) ($altro['business_name'] ?? '')) ?: 'Azienda #'.$altroId),
                 'url' => $azienda ? CustomerResource::viewUrl($altroId) : static::companyUrl($altro),
                 'detail' => implode(' · ', $dettaglio),
+                'badge' => ($row['is_legal_representative'] ?? 'false') === 'true' ? static::relationText('legal_representative') : '',
             ];
         }
 

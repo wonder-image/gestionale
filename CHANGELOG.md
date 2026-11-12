@@ -34,6 +34,18 @@ versionamento semantico.
   ruolo `warehouse` e alle sedi dell'azienda dal pannello ordine.
 
 ### Aggiunto
+- Anagrafiche: spunta «Rappresentante legale» nella riga del referente (scheda
+  azienda) e nella riga «Aziende» (scheda persona), accanto a «Ufficio». Vale
+  per quel legame, anche più d'uno per azienda; non dà accesso e non cambia
+  ufficio né brand seguiti. Le schede mostrano l'etichetta accanto al nome
+  (`CustomerSheet::relations()`, voce `badge`),
+  `DocumentReferents::legalRepresentatives()` li legge per chi genera
+  documenti, `people()` e lo strumento MCP `customer_get` portano
+  `is_legal_representative`.
+- Anagrafiche: referenti, contatti aziendali del referente, brand, social e
+  «Altri contatti» senza righe mostrano un'area tratteggiata con al centro
+  «Aggiungi» al posto di una riga vuota (stato vuoto del repeater di
+  `wonder-image/app`, acceso da customer-account).
 - **Funzionalità «CRM» (`crm`, spenta di serie).** Accesa: più recapiti per
   persone, aziende, brand e referenti, ognuno con il «Tipo» (Email, Telefono
   fisso, Cellulare, WhatsApp) e, per aziende, brand e referenti, l'«Ufficio»;

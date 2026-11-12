@@ -239,7 +239,8 @@ i suoi dati** — nome o ragione sociale, ruolo, stato, email, telefono, accesso
 sito (solo per le persone) e note — e gli **indirizzi di consegna**. La scheda di
 un'azienda elenca anche i suoi **referenti**, quella di una persona le **aziende**
 per cui è referente: il nome apre la loro scheda, sotto ci sono il ruolo e i
-contatti che usa per quell'azienda. Poi gli ordini, il carrello, gli
+contatti che usa per quell'azienda. Chi è **rappresentante legale** ha
+l'etichetta accanto al nome. Poi gli ordini, il carrello, gli
 **abbonamenti** (con la funzionalità *Abbonamenti*) e, in fondo, i coupon.
 
 La scheda di una persona che è **solo referente** si apre come le altre, ma
@@ -344,10 +345,18 @@ lavora. La stessa persona può essere referente di più aziende ed è sempre
 
 Ogni referente è una **scheda richiudibile**: chiusa mostra il nome, il ruolo
 e l'ufficio; un clic sul titolo la apre. Aperta ha su una riga la **Persona**
-(nel form di una persona, l'**Azienda**), il **Ruolo** e l'**Ufficio**; sotto,
-i **Contatti aziendali**. Non ci sono altre opzioni da aprire. Le schede si
-riordinano trascinandole dai **puntini** a sinistra del titolo e si tolgono
-con il cestino.
+(nel form di una persona, l'**Azienda**), il **Ruolo**, l'**Ufficio** e la
+spunta **Rappresentante legale**; sotto, i **Contatti aziendali**. Non ci sono
+altre opzioni da aprire. Le schede si riordinano trascinandole dai **puntini**
+a sinistra del titolo e si tolgono con il cestino.
+
+Finché non c'è nessun referente il riquadro mostra un'area tratteggiata con al
+centro il bottone **Aggiungi**: un clic apre la prima riga e il bottone passa
+sotto le righe, a destra. Togliendo l'ultima riga torna l'area tratteggiata.
+Funziona così anche per i **Contatti aziendali** dentro la riga di un
+referente, per i **Brand** dell'azienda, per i **Social** e per gli *Altri
+contatti*. Nel riquadro **Contatti** di una scheda la prima riga resta sempre
+aperta.
 
 Per ogni riga cerca la scheda nella tendina scrivendo una parte del nome. Nel
 form di una persona la tendina delle aziende mostra solo la **ragione
@@ -367,6 +376,12 @@ Poi:
   *Amministrazione*, *Acquisti*, *Commerciale*, *Tecnico*, *Direzione*,
   *Altro* e quelli creati da te con il **+**. *Generale*, la prima voce, vuol
   dire che si occupa di tutto;
+- **Rappresentante legale**: spuntala per chi firma per l'azienda. Vale per
+  quell'azienda sola: la stessa persona può esserlo per un'azienda e non per
+  un'altra, e un'azienda può averne più d'uno. Non dà accesso al sito e non
+  cambia l'ufficio né i brand seguiti. Accanto al nome, nella scheda
+  dell'azienda e in quella della persona, compare l'etichetta *Rappresentante
+  legale*;
 - **Contatti aziendali**: i contatti del referente per quell'azienda
   (facoltativi). Con il CRM è un elenco: *Aggiungi un contatto* e, per ogni
   riga, il **Tipo** (*Email*, *Telefono fisso*, *Cellulare*, *WhatsApp*) con
