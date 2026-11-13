@@ -39,6 +39,7 @@ use Wonder\Plugin\Gestionale\Support\Backend\HeaderActions;
 use Wonder\Plugin\Gestionale\Support\Backend\ListBulkActions;
 use Wonder\Plugin\Gestionale\Support\Documents\OrderProforma;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderActions;
+use Wonder\Plugin\Gestionale\Support\Orders\OrderQueues;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
 use Wonder\Plugin\Gestionale\Support\Payments\OnlinePayments;
 use Wonder\Plugin\Gestionale\Support\Payments\PaymentStatus;
@@ -169,6 +170,13 @@ final class OrderResource extends GestionaleResource
             ->filterCustom('Ordine', 'status', static::options('order', Gestionale::feature('office_sales') ? ['draft', ...Order::LIVE_STATUSES] : Order::LIVE_STATUSES))
             ->filterCustom('Pagamento', 'payment_status', static::options('payment', Order::PAYMENT_STATUSES))
             ->filterCustom('Evasione', 'fulfillment_status', static::options('fulfillment', Order::FULFILLMENT_STATUSES))
+            // Le code del riquadro «Ordini» della home, con le stesse condizioni.
+            ->filterQuery(
+                'Situazione',
+                'situazione',
+                ['' => 'Tutti'] + OrderQueues::LABELS,
+                static fn (array $values): string => OrderQueues::condition((string) ($values[0] ?? ''))
+            )
             // Gli ordini abbandonati al pagamento stanno fuori dall'elenco:
             // si guardano solo chiedendoli.
             ->filterQuery(
@@ -670,6 +678,21 @@ final class OrderResource extends GestionaleResource
     public static function listUrl(): string
     {
         return static::routeUrl('list', '/backend/'.static::path().'/');
+    }
+
+    /**
+     * L'elenco già filtrato: nome del filtro → valore, per esempio
+     * `['situazione' => 'da_evadere']` o `['periodo' => 'oggi']`.
+     */
+    public static function filteredUrl(array $filters): string
+    {
+        $query = [];
+
+        foreach ($filters as $name => $value) {
+            $query[Order::$table.'__'.$name] = (string) $value;
+        }
+
+        return static::listUrl().($query === [] ? '' : '?'.http_build_query($query, '', '&', PHP_QUERY_RFC3986));
     }
 
     /** L'indirizzo della scheda di un ordine, con il ritorno facoltativo. */

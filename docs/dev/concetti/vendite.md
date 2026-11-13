@@ -727,6 +727,28 @@ wonder-image/app):
 
 Test: `tests/ListBulkActionsTest.php`.
 
+## Il riquadro «Ordini» della home
+
+`Backend\Widgets\OrdersWidget` (ordine 15, subito dopo `SetupWidget` in
+`backend.home_widgets`) disegna quattro `StatusCard`: ordini del mese (con
+quelli di oggi nel dettaglio) e le tre code di `Support\Orders\OrderQueues`:
+
+- `in_attesa`: `status = 'pending'`;
+- `da_evadere`: `status` in `Lifecycle::COMMITTED`, `fulfillment_status`
+  `unfulfilled` o `partially_fulfilled`;
+- `da_pagare`: le stesse condizioni di `OrderActions::canRegisterPayment()`.
+
+Tutto su `OrderQueues::BASE`, le righe dell'elenco Ordini senza gli
+abbandonati, in una query sola (`countSql()`). Le stesse condizioni sono il
+filtro **Situazione** di `OrderResource` (`filterQuery('situazione')`), e
+`OrderResource::filteredUrl(['situazione' => ...])` costruisce i link delle
+card: numero e righe non possono divergere. Il periodo usa `MovementPeriod`
+su `ordered_at`, come il filtro **Periodo**.
+
+Lo vede chi vede le vendite, senza i commerciali (`SalesAgents::withoutAgents`,
+come `AttentionWidget`); con `orders` spenta non disegna niente. `markup()` è
+puro: `tests/OrderQueuesTest.php` lo prova senza database.
+
 ## Errori che il commerciante legge
 
 I servizi lanciano `UserError::make('gruppo.chiave')`; la frase sta in

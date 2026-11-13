@@ -48,6 +48,7 @@ return [
     'backend' => [
         'home_widgets' => [
             \Wonder\Plugin\Gestionale\Backend\Widgets\SetupWidget::class,
+            \Wonder\Plugin\Gestionale\Backend\Widgets\OrdersWidget::class,
             \Wonder\Plugin\Gestionale\Backend\Widgets\AttentionWidget::class,
             \Wonder\Plugin\Gestionale\Backend\Widgets\LowStockWidget::class,
             \Wonder\Plugin\Gestionale\Backend\Widgets\ShipmentsToCheckWidget::class,

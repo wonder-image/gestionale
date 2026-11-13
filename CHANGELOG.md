@@ -34,6 +34,11 @@ versionamento semantico.
   ruolo `warehouse` e alle sedi dell'azienda dal pannello ordine.
 
 ### Aggiunto
+- Home del backend: il riquadro «Ordini» con gli ordini del mese (e di oggi)
+  e tre code, in attesa di conferma, da evadere e da pagare; ogni card apre
+  l'elenco Ordini già filtrato. Nuovo filtro «Situazione» nell'elenco
+  (`Support\Orders\OrderQueues`, `OrderResource::filteredUrl()`,
+  `Backend\Widgets\OrdersWidget`).
 - Azioni di massa nelle liste: in *Catalogo → Prodotti* si pubblicano o si
   mettono in bozza più articoli insieme; in *Vendite → Ordini* si confermano,
   si segnano evasi o si annullano più ordini, ognuno con i controlli dei
