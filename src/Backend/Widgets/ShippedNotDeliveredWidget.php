@@ -32,7 +32,7 @@ final class ShippedNotDeliveredWidget implements HomeWidget
 
     public function order(): int
     {
-        return 27;
+        return 17;
     }
 
     public function render(): string

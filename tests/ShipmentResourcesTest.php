@@ -6,7 +6,8 @@ require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
 use Wonder\Backend\Contracts\HomeWidget;
-use Wonder\Plugin\Gestionale\Backend\Widgets\LowStockWidget;
+use Wonder\Plugin\Gestionale\Backend\Widgets\AttentionWidget;
+use Wonder\Plugin\Gestionale\Backend\Widgets\OrdersWidget;
 use Wonder\Plugin\Gestionale\Backend\Widgets\ShipmentsToCheckWidget;
 use Wonder\Plugin\Gestionale\Backend\Widgets\ShippedNotDeliveredWidget;
 use Wonder\Plugin\Gestionale\Gestionale;
@@ -157,16 +158,17 @@ check('il tracking si legge come testo anche se porta HTML, e il link è cliccab
         && !str_contains($falso, '<a ');
 });
 
-check('i due riquadri della bacheca sono di chi lavora le spedizioni e stanno dopo «Sotto scorta»', function () {
+check('i due riquadri della bacheca sono di chi lavora le spedizioni e stanno sotto «Ordini»', function () {
     $widgets = (require __DIR__ . '/../config/module.php')['backend']['home_widgets'];
-    $dopo = array_search(LowStockWidget::class, $widgets, true);
+    $dopo = array_search(OrdersWidget::class, $widgets, true);
 
     return is_subclass_of(ShipmentsToCheckWidget::class, HomeWidget::class)
         && is_subclass_of(ShippedNotDeliveredWidget::class, HomeWidget::class)
         && (new ShipmentsToCheckWidget)->authorities() === ['admin', 'administrator', 'sales', 'warehouse']
         && (new ShippedNotDeliveredWidget)->authorities() === ['admin', 'administrator', 'sales', 'warehouse']
-        && (new ShipmentsToCheckWidget)->order() > (new LowStockWidget)->order()
+        && (new ShipmentsToCheckWidget)->order() > (new OrdersWidget)->order()
         && (new ShippedNotDeliveredWidget)->order() > (new ShipmentsToCheckWidget)->order()
+        && (new ShippedNotDeliveredWidget)->order() < (new AttentionWidget)->order()
         && array_search(ShipmentsToCheckWidget::class, $widgets, true) === $dopo + 1
         && array_search(ShippedNotDeliveredWidget::class, $widgets, true) === $dopo + 2;
 });

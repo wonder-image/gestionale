@@ -85,4 +85,5 @@ e lo storico dei passaggi.
   o *consegna fallita*).
 * **Spedite e non consegnate**: partite da più di 7 giorni e non ancora arrivate.
 
-Ogni riquadro dice quante sono e apre l'elenco già filtrato; a zero sparisce.
+Stanno subito sotto il riquadro **Ordini**. Ogni riquadro dice quante sono e
+apre l'elenco già filtrato; a zero sparisce.

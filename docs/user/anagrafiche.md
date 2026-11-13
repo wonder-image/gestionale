@@ -496,6 +496,11 @@ toglilo prima dai fornitori di quegli articoli e di quelle opzioni.
 
 ## Nella home
 
+Sotto il riquadro **Ordini**, **Clienti** dice quanti clienti privati hai e,
+se lavori anche con le aziende, quante aziende clienti; sotto ogni numero,
+quanti ne sono arrivati questo mese. Cliccando si apre l'elenco con i soli
+clienti (i fornitori non contano).
+
 Il riquadro **Anagrafiche** dice quanti clienti e quante aziende ci sono e
 porta agli elenchi; con un modo solo mostra solo quello con cui lavori.
 # Storage condiviso

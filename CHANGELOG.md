@@ -39,6 +39,15 @@ versionamento semantico.
   l'elenco Ordini già filtrato. Nuovo filtro «Situazione» nell'elenco
   (`Support\Orders\OrderQueues`, `OrderResource::filteredUrl()`,
   `Backend\Widgets\OrdersWidget`).
+- Home del backend: sotto «Ordini» vengono le spedizioni da controllare e in
+  ritardo (prima stavano dopo «Sotto scorta»), poi due riquadri nuovi.
+  «Clienti»: quanti clienti privati e, con le aziende attive, quante aziende
+  clienti, con i nuovi del mese (`Support\Contacts\CustomerCounts`,
+  `Backend\Widgets\CustomersWidget`). «Preventivi», con la funzionalità
+  Preventivi: le bozze da inviare e gli inviati in attesa, con quelli che
+  scadono entro 7 giorni (`Support\Sales\QuoteCounts`,
+  `Backend\Widgets\QuotesWidget`). Ogni card apre l'elenco filtrato.
+  `CustomerResource::listUrl()` e `WidgetCard::halfRow()`.
 - Azioni di massa nelle liste: in *Catalogo → Prodotti* si pubblicano o si
   mettono in bozza più articoli insieme; in *Vendite → Ordini* si confermano,
   si segnano evasi o si annullano più ordini, ognuno con i controlli dei

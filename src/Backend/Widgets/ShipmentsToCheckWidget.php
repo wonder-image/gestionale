@@ -32,7 +32,7 @@ final class ShipmentsToCheckWidget implements HomeWidget
 
     public function order(): int
     {
-        return 26;
+        return 16;
     }
 
     public function render(): string

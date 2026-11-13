@@ -61,6 +61,9 @@ su *Questo mese*) con gli stessi ordini del numero. Gli ordini del mese
 comprendono anche quelli annullati dopo; le bozze da ufficio e i pagamenti
 non riusciti non contano mai.
 
+Sotto vengono le spedizioni da controllare e in ritardo (solo quando ce ne
+sono), i **Clienti** e, se usi i preventivi, i **Preventivi**.
+
 ## La scheda
 
 Il numero sta nel titolo; sotto, in piccolo, *Creato il* con data e ora e il

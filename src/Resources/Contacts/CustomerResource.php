@@ -1024,23 +1024,30 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
     /** L'indirizzo della scheda in lettura; il ripiego è il percorso. */
     public static function viewUrl(int $id): string
     {
-        return static::namedUrl('view', '/backend/'.static::path().'/'.$id.'/', $id);
+        return static::namedUrl('view', '/backend/'.static::path().'/'.$id.'/', ['id' => $id]);
     }
 
     /** L'indirizzo della modifica. */
     public static function editUrlFor(int $id): string
     {
-        return static::namedUrl('edit', '/backend/'.static::path().'/'.$id.'/edit/', $id);
+        return static::namedUrl('edit', '/backend/'.static::path().'/'.$id.'/edit/', ['id' => $id]);
     }
 
-    private static function namedUrl(string $action, string $fallback, int $id): string
+    /** L'indirizzo dell'elenco. */
+    public static function listUrl(): string
+    {
+        return static::namedUrl('list', '/backend/'.static::path().'/');
+    }
+
+    /** @param array<string, mixed> $params */
+    private static function namedUrl(string $action, string $fallback, array $params = []): string
     {
         if (!function_exists('__r')) {
             return $fallback;
         }
 
         try {
-            $named = (string) __r('backend.resource.'.static::slug().'.'.$action, ['id' => $id]);
+            $named = (string) __r('backend.resource.'.static::slug().'.'.$action, $params);
         } catch (Throwable) {
             return $fallback;
         }
