@@ -186,3 +186,17 @@ vale più, o un metodo che non arriva al nuovo indirizzo, sparisce con un avviso
 All'invio l'ordine si ferma se il ritiro è in una sede che non è (più) di ritiro o
 se la spedizione non ha un metodo che arrivi all'indirizzo. Gli ordini di soli
 servizi e quelli con le spedizioni spente non chiedono il metodo.
+
+## Le email degli ordini
+
+Le email al cliente e al negozio hanno la stessa grafica delle altre email del
+sito: titolo, elenco degli articoli in colonna (quantità, prezzo, prezzo di
+listino barrato se scontato, totale riga), il riepilogo dei totali (prodotti,
+sconto, spedizione, costi e IVA quando ci sono, poi il totale in evidenza) e un
+pulsante per aprire l'ordine. Il cliente vede anche le istruzioni di pagamento
+e, per il bonifico, i dati del conto in un riquadro; il negozio vede gli SKU.
+
+Nell'email al cliente accanto a ogni articolo c'è una piccola foto del
+prodotto, in una versione leggera che non appesantisce l'email. Le foto ci sono
+solo se **tutti** i prodotti dell'ordine ne hanno una: se ne manca anche una
+sola, l'elenco resta senza foto. Le email al negozio non hanno mai foto.

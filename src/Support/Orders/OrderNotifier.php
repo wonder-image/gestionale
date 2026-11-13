@@ -2,6 +2,7 @@
 
 namespace Wonder\Plugin\Gestionale\Support\Orders;
 
+use Wonder\Plugin\Gestionale\Support\Catalog\ProductPhotos;
 use Wonder\Plugin\Gestionale\Extensions\OrderEmailExtras;
 use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentAccount;
@@ -125,6 +126,32 @@ final class OrderNotifier
             return [];
         }
 
-        return isset($rows['id']) ? [$rows] : array_values(array_filter($rows, 'is_array'));
+        return self::withPhotos(isset($rows['id']) ? [$rows] : array_values(array_filter($rows, 'is_array')));
+    }
+
+    /**
+     * Le righe nate prima che la foto si copiasse nell'ordine prendono quella
+     * di oggi del prodotto. Solo i prodotti principali: le scelte del bundle
+     * finiscono nella descrizione e non hanno foto.
+     *
+     * @param list<array<string, mixed>> $rows
+     * @param (callable(int): string)|null $photo
+     * @return list<array<string, mixed>>
+     */
+    public static function withPhotos(array $rows, ?callable $photo = null): array
+    {
+        $photo ??= [ProductPhotos::class, 'forProduct'];
+
+        foreach ($rows as &$row) {
+            if (($row['type'] ?? 'product') === 'product'
+                && (int) ($row['parent_item_id'] ?? 0) === 0
+                && (int) ($row['product_id'] ?? 0) > 0
+                && trim((string) ($row['image'] ?? '')) === '') {
+                $row['image'] = (string) $photo((int) $row['product_id']);
+            }
+        }
+        unset($row);
+
+        return $rows;
     }
 }

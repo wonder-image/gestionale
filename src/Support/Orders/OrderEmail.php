@@ -3,7 +3,10 @@
 namespace Wonder\Plugin\Gestionale\Support\Orders;
 
 use Throwable;
+use Wonder\App\Support\Mail\MailMessage;
 use Wonder\Plugin\Gestionale\Gestionale;
+use Wonder\Plugin\Gestionale\Support\Catalog\Customizations;
+use Wonder\Plugin\Gestionale\Support\Mail\MailBuilder;
 
 /**
  * Oggetto e corpo delle otto email di un ordine.
@@ -65,30 +68,177 @@ final class OrderEmail
             ':url' => '',
         ];
 
+        $view = $merchant ? self::MERCHANT_VIEW : self::CUSTOMER_VIEW;
+        $variables = [
+            'title' => self::text($key, 'title', $values),
+            'intro' => self::text($key, 'intro', $values),
+            'details' => self::details($key, $values),
+            'instructions' => in_array($key, self::INSTRUCTION_KEYS, true) ? (string) ($extra['instructions'] ?? '') : '',
+            'bank_title' => self::text('bank', 'title', []),
+            'bank' => in_array($key, self::INSTRUCTION_KEYS, true) ? self::bank((array) ($extra['bank'] ?? []), $values) : [],
+            'order' => $order,
+            'items' => $items,
+            'url' => self::absoluteUrl((string) ($extra['url'] ?? '')),
+            // La scheda dell'ordine: nell'account per il cliente, nel backend per il commerciante.
+            'order_url' => self::absoluteUrl((string) ($extra['order_url'] ?? '')),
+            'order_button' => self::text('link', $merchant ? 'merchant' : 'customer', []),
+            // L'ospite sceglie la password dal link: solo nelle email che riceve all'ordine.
+            'account_url' => in_array($key, ['received', 'processing', 'paid', 'confirmed'], true) ? self::absoluteUrl((string) ($extra['account_url'] ?? '')) : '',
+            'account_title' => self::text('account', 'title', []),
+            'account_button' => self::text('account', 'button', []),
+            'e' => static fn (mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8'),
+            'money' => static fn (mixed $v): string => self::money($v),
+            'qty' => static fn (mixed $v): string => self::quantity((float) $v),
+        ];
+        $mail = MailBuilder::forView($view);
+
         return [
             'subject' => self::text($key, 'subject', $values),
-            'body' => self::render($merchant ? self::MERCHANT_VIEW : self::CUSTOMER_VIEW, [
-                'title' => self::text($key, 'title', $values),
-                'intro' => self::text($key, 'intro', $values),
-                'details' => self::details($key, $values),
-                'instructions' => in_array($key, self::INSTRUCTION_KEYS, true) ? (string) ($extra['instructions'] ?? '') : '',
-                'bank_title' => self::text('bank', 'title', []),
-                'bank' => in_array($key, self::INSTRUCTION_KEYS, true) ? self::bank((array) ($extra['bank'] ?? []), $values) : [],
-                'order' => $order,
-                'items' => $items,
-                'url' => self::absoluteUrl((string) ($extra['url'] ?? '')),
-                // La scheda dell'ordine: nell'account per il cliente, nel backend per il commerciante.
-                'order_url' => self::absoluteUrl((string) ($extra['order_url'] ?? '')),
-                'order_button' => self::text('link', $merchant ? 'merchant' : 'customer', []),
-                // L'ospite sceglie la password dal link: solo nelle email che riceve all'ordine.
-                'account_url' => in_array($key, ['received', 'processing', 'paid', 'confirmed'], true) ? self::absoluteUrl((string) ($extra['account_url'] ?? '')) : '',
-                'account_title' => self::text('account', 'title', []),
-                'account_button' => self::text('account', 'button', []),
-                'e' => static fn (mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8'),
-                'money' => static fn (mixed $v): string => self::money($v),
-                'qty' => static fn (mixed $v): string => self::quantity((float) $v),
-            ]),
+            'body' => $mail === null ? self::render($view, $variables) : self::build($mail, $merchant, $variables),
         ];
+    }
+
+    /**
+     * Il corpo con il builder del core: stessa sostanza della vista, con la
+     * grafica delle email del sito. Al commerciante niente istruzioni né
+     * bonifico, come nella sua vista.
+     *
+     * @param array<string, mixed> $v
+     */
+    private static function build(MailMessage $mail, bool $merchant, array $v): string
+    {
+        $mail->preheader($v['intro'])->heading($v['title']);
+
+        if ($v['intro'] !== '') {
+            $mail->text($v['intro']);
+        }
+
+        if (!$merchant && $v['details'] !== []) {
+            $mail->text(implode("\n", $v['details']));
+        }
+
+        if (!$merchant && trim($v['instructions']) !== '') {
+            $mail->notice($v['instructions']);
+        }
+
+        if (!$merchant && $v['bank'] !== []) {
+            $mail->details(array_column($v['bank'], 'value', 'label'), $v['bank_title']);
+        }
+
+        $notes = [];
+        $mail->items(self::itemRows($v['items'], $merchant, $notes), self::totals($v['order']));
+
+        if ($notes !== []) {
+            $mail->text(implode("\n", $notes));
+        }
+
+        if (trim($v['order_url']) !== '') {
+            $mail->button($v['order_button'], $v['order_url']);
+        }
+
+        if (!$merchant && trim($v['account_url']) !== '') {
+            $mail->text($v['account_title'])->button($v['account_button'], $v['account_url']);
+        }
+
+        if (trim($v['url']) !== '') {
+            $mail->html(MailBuilder::link($v['url']));
+        }
+
+        return (string) $mail;
+    }
+
+    /**
+     * Le righe dell'ordine per `items()`: le scelte dei bundle e le
+     * personalizzazioni vanno nella descrizione del padre, le righe di sola
+     * nota in `$notes`, sotto l'elenco; al commerciante anche lo SKU.
+     * Le foto solo al cliente, e solo se ce l'hanno tutti i prodotti: una
+     * colonna a metà sembra un errore.
+     *
+     * @param list<array<string, mixed>> $items
+     * @param list<string> $notes
+     * @return list<array<string, string>>
+     */
+    private static function itemRows(array $items, bool $merchant, array &$notes): array
+    {
+        $rows = [];
+        $images = [];
+        $descriptions = [];
+        $byId = [];
+
+        foreach ($items as $item) {
+            $name = trim((string) ($item['name'] ?? ''));
+            $sku = $merchant ? trim((string) ($item['sku'] ?? '')) : '';
+
+            if ((string) ($item['type'] ?? '') === 'text') {
+                $notes[] = $name;
+                continue;
+            }
+
+            if ((int) ($item['parent_item_id'] ?? 0) > 0 && $rows !== []) {
+                $parent = $byId[(int) $item['parent_item_id']] ?? array_key_last($rows);
+                $choice = (int) ($item['bundle_option_id'] ?? 0) > 0 ? self::text('items', 'choice', [':name' => $name]) : $name;
+                $descriptions[$parent][] = $sku !== '' ? $choice.' · '.$sku : $choice;
+                continue;
+            }
+
+            $index = count($rows);
+            $byId[(int) ($item['id'] ?? 0)] = $index;
+            $descriptions[$index] = [...Customizations::lines($item), ...($sku !== '' ? [$sku] : [])];
+            $images[$index] = $merchant ? '' : MailBuilder::thumbnail((string) ($item['image'] ?? ''));
+            $price = (float) ($item['unit_price'] ?? 0);
+            $list = (float) ($item['list_price'] ?? 0);
+            $rows[] = [
+                'name' => $name,
+                'quantity' => self::quantity((float) ($item['quantity'] ?? 0)),
+                'price' => isset($item['unit_price']) ? self::money($price).' €' : '',
+                'original_price' => $list > $price + 0.004 ? self::money($list).' €' : '',
+                'total' => self::money($item['line_total'] ?? 0).' €',
+            ];
+        }
+
+        $withImages = $rows !== [] && !in_array('', $images, true);
+
+        foreach ($rows as $index => &$row) {
+            $row['description'] = implode("\n", array_filter($descriptions[$index] ?? [], static fn (string $line): bool => trim($line) !== ''));
+
+            if ($withImages) {
+                $row['image'] = self::absoluteUrl($images[$index]);
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * I totali sotto le righe, come nella scheda dell'ordine: sconto,
+     * spedizione, costi e IVA solo se diversi da zero; l'ultimo è il totale.
+     * Con i prezzi IVA inclusa l'IVA si legge «di cui».
+     *
+     * @param array<string, mixed> $order
+     * @return array<string, string>
+     */
+    private static function totals(array $order): array
+    {
+        $totals = [];
+
+        if (array_key_exists('products_total', $order)) {
+            $totals[self::text('totals', 'products', [])] = self::money($order['products_total']).' €';
+
+            foreach (['discount' => 'discount_total', 'shipping' => 'shipping_total', 'fees' => 'fees_total'] as $label => $field) {
+                if (abs((float) ($order[$field] ?? 0)) > 0.004) {
+                    $totals[self::text('totals', $label, [])] = self::money($order[$field]).' €';
+                }
+            }
+
+            if (abs((float) ($order['tax_total'] ?? 0)) > 0.004) {
+                $included = (string) ($order['prices_include_tax'] ?? 'true') === 'true';
+                $totals[self::text('totals', $included ? 'tax_included' : 'tax', [])] = self::money($order['tax_total']).' €';
+            }
+        }
+
+        $totals[self::text('totals', 'total', [])] = self::money($order['total'] ?? 0).' €';
+
+        return $totals;
     }
 
     /**

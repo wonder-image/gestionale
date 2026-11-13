@@ -473,10 +473,16 @@ ogni ripetizione, scrive di nuovo a chi sviluppa. Se il server di posta è giù
 non parte neanche quella; se invece rifiuta sempre lo stesso indirizzo, arriva
 un'email tecnica ogni quarto d'ora finché qualcuno non corregge i destinatari.
 
-**L'email.** L'oggetto è "N prodotti sotto scorta", il corpo viene da
-`view/emails/low-stock.php`. Per cambiarlo si copia il file in
-`custom/modules/gestionale/view/emails/low-stock.php`: la view riceve
-`$items`, `$count`, `$url`, `$e()` per il testo e `$qty()` per i pezzi.
+**L'email.** L'oggetto è "N prodotti sotto scorta". Il corpo si compone con
+`MailMessage` del core (`LowStockEmail::build()`): tabella dei prodotti con
+`MailMessage::table()` (prodotto, disponibili, scorta minima),
+pulsante verso le giacenze e nota in fondo, con la grafica delle email del
+sito. Con un core che non ha ancora `MailMessage` il corpo viene da
+`view/emails/low-stock.php`, come prima. Per cambiarlo si copia il file in
+`custom/modules/gestionale/view/emails/low-stock.php`: la copia del sito vince
+sempre sul builder. La view riceve `$items`, `$count`, `$url`, `$e()` per il
+testo e `$qty()` per i pezzi. Il resto è in
+[Hook › Aspetto delle email](hook.md#aspetto-delle-email).
 
 ```php
 LowStockNotifier::run(true);   // l'anteprima, come il comando

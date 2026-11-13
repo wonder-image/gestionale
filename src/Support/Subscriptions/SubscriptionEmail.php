@@ -3,7 +3,9 @@
 namespace Wonder\Plugin\Gestionale\Support\Subscriptions;
 
 use Throwable;
+use Wonder\App\Support\Mail\MailMessage;
 use Wonder\Plugin\Gestionale\Gestionale;
+use Wonder\Plugin\Gestionale\Support\Mail\MailBuilder;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderEmail;
 
 /**
@@ -45,17 +47,40 @@ final class SubscriptionEmail
             }
         }
 
+        $variables = [
+            'title' => self::text($key, 'title', $values),
+            'intro' => self::text($key, 'intro', $values),
+            'details' => $lines,
+            'url' => OrderEmail::absoluteUrl((string) ($extra['account_url'] ?? '')),
+            'button' => self::text($key, 'button', $values),
+            'e' => static fn (mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8'),
+        ];
+        $mail = MailBuilder::forView(self::VIEW);
+
         return [
             'subject' => self::text($key, 'subject', $values),
-            'body' => self::render([
-                'title' => self::text($key, 'title', $values),
-                'intro' => self::text($key, 'intro', $values),
-                'details' => $lines,
-                'url' => OrderEmail::absoluteUrl((string) ($extra['account_url'] ?? '')),
-                'button' => self::text($key, 'button', $values),
-                'e' => static fn (mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8'),
-            ]),
+            'body' => $mail === null ? self::render($variables) : self::build($mail, $variables),
         ];
+    }
+
+    /** Il corpo con il builder del core, quando il sito non ha la sua vista. */
+    private static function build(MailMessage $mail, array $v): string
+    {
+        $mail->preheader($v['intro'])->heading($v['title']);
+
+        if ($v['intro'] !== '') {
+            $mail->text($v['intro']);
+        }
+
+        if ($v['details'] !== []) {
+            $mail->text(implode("\n", $v['details']));
+        }
+
+        if ($v['url'] !== '' && $v['button'] !== '') {
+            $mail->button($v['button'], $v['url']);
+        }
+
+        return (string) $mail;
     }
 
     /**

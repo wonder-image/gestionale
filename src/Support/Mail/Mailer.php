@@ -150,6 +150,16 @@ final class Mailer
     }
 
     /**
+     * Il corpo come arriva a `sendMail()`: quello composto con `MailMessage`
+     * passa intatto (il core lo riconosce e non lo ripulisce), gli altri si
+     * difendono da `sanitizeEcho()` come prima.
+     */
+    public static function prepare(string $body): string
+    {
+        return MailBuilder::isBuilt($body) ? $body : self::shield($body);
+    }
+
+    /**
      * Prepara il corpo per `sanitizeEcho()`, che `emailTemplate()` gli passa
      * sopra: toglie le barre e decodifica le entità, e senza questa difesa un
      * `&lt;b&gt;` scritto apposta tornerebbe `<b>`.
@@ -236,7 +246,7 @@ final class Mailer
             // Su Brevo il core manda la risposta-a senza guardarla, e Brevo ne
             // rifiuta una vuota: l'email non partirebbe mai.
             $from = self::replyTo();
-            $html = self::shield($body);
+            $html = self::prepare($body);
             $files = $attachments === [] ? null : $attachments;
 
             if ($cc === [] || self::coreSupportsCc()) {

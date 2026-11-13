@@ -66,6 +66,50 @@ public function beforeEmailSend(string $key, array $message): array
 }
 ```
 
+### Aspetto delle email
+
+Le email del gestionale (ordini, abbonamenti, sotto scorta, avviso dei
+pagamenti) si compongono con `Wonder\App\Support\Mail\MailMessage` del core:
+stessa grafica delle altre email del sito, pulsanti, riepiloghi. Il corpo
+composto inizia con `<!--wi-mail:v1-->` e `Mailer::prepare()` lo manda così
+com'è; un corpo scritto a mano passa ancora da `Mailer::shield()`.
+
+Il corpo resta quello delle viste in `view/emails/` in due casi:
+
+- il core non ha ancora `MailMessage` (`MailBuilder::available()` falso);
+- il sito ha copiato la vista in `custom/modules/gestionale/view/emails/`:
+  la sua copia vince sempre (`MailBuilder::forView()` torna `null`).
+
+In `beforeEmailSend` il `body` composto si può sostituire del tutto. Se invece
+gli si aggiunge HTML davanti, il segno `<!--wi-mail:v1-->` non è più
+all'inizio: il corpo parte come uno scritto a mano, difeso da `shield()`.
+Per aggiungere un blocco conviene copiare la vista o comporre un nuovo
+`MailMessage`.
+
+Serve un core con `MailMessage::items()` e `table()`: con uno più vecchio
+`MailBuilder::available()` è falso e si torna alle viste. Gli ordini usano
+`items()`: una riga per articolo con nome, scelte del bundle e
+personalizzazioni nella descrizione (più lo SKU per il negozio), quantità,
+prezzo unitario, prezzo di listino barrato se c'è uno sconto e totale riga; le
+righe di testo vanno in un blocco di testo sotto. I totali scompongono
+prodotti, sconto, spedizione, costi e IVA (ognuno solo se diverso da zero, IVA
+come "di cui IVA" se i prezzi la comprendono) e finiscono con il totale.
+
+Le foto dei prodotti vanno **solo nelle email al cliente**, e solo se **tutti**
+i prodotti dell'ordine ne hanno una: altrimenti nessuna colonna foto, niente
+segnaposto grigi. `MailBuilder::thumbnail()` sceglie la misura più leggera
+generata al caricamento che resta nitida a 64px su schermi retina (la prima
+larghezza di `ImageSizes::widths()` da 128px in su, di solito 240px), nel
+formato dell'originale perché Outlook non legge il webp (una foto caricata in
+webp resta webp: Outlook per Windows non la mostra). Se quella misura non
+c'è su disco va bene solo un originale già piccolo; altrimenti la foto salta.
+Per le righe senza la foto copiata nell'ordine `OrderNotifier` ripiega su
+quella di oggi del prodotto (`OrderNotifier::withPhotos()`, solo i prodotti
+principali).
+
+L'email sotto scorta usa `table()`: prodotto (con opzione, SKU e sede sotto),
+disponibili e scorta minima allineati a destra.
+
 ## Formati delle etichette
 
 `labelFormats($formats): array` riceve i formati delle etichette con codice a
