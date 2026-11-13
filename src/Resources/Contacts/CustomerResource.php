@@ -14,7 +14,10 @@ use Wonder\App\ResourceSchema\RepeaterRelation;
 use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\App\ResourceSchema\TableLayoutSchema;
 use Throwable;
+use Wonder\Backend\Table\RowSignal;
+use Wonder\Backend\Table\RowSignals;
 use Wonder\Elements\Components\Accordion;
+use Wonder\Elements\Components\Alert;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\RichText;
@@ -47,6 +50,7 @@ use Wonder\Plugin\Gestionale\Support\Contacts\Brands;
 use Wonder\Plugin\Gestionale\Support\Contacts\ContactExports;
 use Wonder\Plugin\Gestionale\Support\Contacts\ContactVisibility;
 use Wonder\Plugin\Gestionale\Support\Contacts\Crm;
+use Wonder\Plugin\Gestionale\Support\Contacts\PartySignals;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
 use Wonder\Plugin\Gestionale\Support\Contacts\CustomerMode;
 use Wonder\Plugin\Gestionale\Support\Contacts\CustomerSheet;
@@ -810,9 +814,56 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
         return ['is_customer' => CustomerMode::people() ? 'true' : 'false'] + $values;
     }
 
+    /** La chiave dei segnali di riga di questa lista, per `RowSignals::add()` / `remove()`. */
+    public static function signalList(): string
+    {
+        return static::isCompanySide() ? PartySignals::COMPANIES : PartySignals::CONTACTS;
+    }
+
+    /** @return list<RowSignal> */
+    protected static function defaultRowSignals(): array
+    {
+        return static::isCompanySide() ? PartySignals::companies() : PartySignals::contacts();
+    }
+
+    /** @return list<RowSignal> I segnali accesi, con le modifiche del sito. */
+    public static function rowSignals(): array
+    {
+        return RowSignals::resolve(static::signalList(), static::defaultRowSignals());
+    }
+
+    /** L'avviso in cima alla scheda con quello che manca; null se non manca niente. */
+    protected static function signalsAlert(int $id): ?Container
+    {
+        $signals = static::rowSignals();
+
+        if ($id <= 0 || $signals === []) {
+            return null;
+        }
+
+        try {
+            $row = static::$model::find(['id' => $id], 1, null, null, RowSignals::selectSql($signals, static::$model::$table));
+        } catch (Throwable) {
+            return null;
+        }
+
+        $on = RowSignals::fromRow($signals, (array) ($row ?? []));
+
+        if ($on === []) {
+            return null;
+        }
+
+        return (new Container)->components([
+            Alert::make(implode("\n", array_map(static fn (RowSignal $s): string => $s->message, $on)), 'warning')
+                ->title(__t('gestionale.contacts.signals.sheet_title'))
+                ->inline(),
+        ])->columnSpan(12);
+    }
+
     public static function tableSchema(): array
     {
         return [
+            RowSignals::column(static fn (): array => static::rowSignals()),
             TableColumn::key('name')
                 ->text()
                 ->link(static::hasSheet() ? 'view' : 'edit')
@@ -847,6 +898,7 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
     {
         $contactTable = static::$model::$table;
         $formats = ContactExports::granted();
+        $signals = static::rowSignals();
         $select = array_filter([
             static::hasAccount() ? "(SELECT GROUP_CONCAT(DISTINCT af.provider ORDER BY af.provider SEPARATOR ',')
                 FROM auth_federated af
@@ -856,6 +908,8 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
                   AND u.deleted = 'false'
                   AND COALESCE(u.password, '') <> '') AS has_local_password" : '',
             static::relationsShown() ? static::relationNamesSql() : '',
+            // Nello stesso select(): una seconda chiamata sostituirebbe la prima.
+            RowSignals::selectSql($signals, $contactTable),
         ]);
         $layout = parent::tableLayoutSchema();
 
@@ -864,6 +918,20 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
         }
 
         $layout = $layout->download($formats)->downloadAsText();
+
+        if ($signals !== []) {
+            $incomplete = RowSignals::whereAny($signals, $contactTable);
+            $layout->filterQuery(
+                __t('gestionale.contacts.signals.filter'),
+                'signals',
+                [
+                    '' => __t('gestionale.contacts.signals.filter_all'),
+                    'any' => __t('gestionale.contacts.signals.filter_only'),
+                ],
+                static fn (array $values): string => ($values[0] ?? '') === 'any' ? $incomplete : '1 = 1',
+                'radio'
+            );
+        }
 
         // Con persone e aziende l'elenco tiene clienti e referenti: il ruolo
         // si sceglie a vista, sopra la tabella. Con un modo solo il ruolo è uno.
@@ -1021,7 +1089,7 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
             ? Accordion::make($titolo)->expanded()->components([RichText::make($html)->tag('div')->columnSpan(12)])->columnSpan(12)
             : Accordion::make($titolo)->components([RichText::make($html)->tag('div')->columnSpan(12)])->columnSpan(12);
 
-        $sinistra = [];
+        $sinistra = array_filter([static::signalsAlert($id)]);
 
         if ($vendite) {
             $mine = '`'.$column.'` = '.$id.($userId > 0 ? ' OR `user_id` = '.$userId : '');

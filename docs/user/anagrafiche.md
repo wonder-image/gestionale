@@ -257,6 +257,25 @@ Dall'elenco dei fornitori il nome apre la sua scheda, come per i clienti:
 ricevuti da lui (il numero apre il carico) e gli **articoli forniti**, con il
 suo codice e il costo. Per cambiare qualcosa c'è **Modifica** in alto.
 
+## Le anagrafiche da completare
+
+Negli elenchi di aziende, persone e fornitori la prima colonna mostra un
+**pallino giallo** quando alla scheda manca qualcosa; passandoci sopra si
+legge cosa:
+
+- **aziende**: il brand (solo per i clienti, con la funzionalità *Brand*), un
+  recapito (email o telefono), un referente, i dati di fatturazione;
+- **persone**: il nome, il cognome o l'email (di accesso o fra i contatti);
+- **fornitori**: un recapito o i dati di fatturazione.
+
+I **dati di fatturazione** sono completi con ragione sociale, via, città e
+paese; per l'Italia servono anche partita IVA o codice fiscale, e codice SDI o
+PEC.
+
+Sopra la tabella il filtro **Da completare** (*Solo da completare*) tiene solo
+le righe con il pallino. Aprendo la scheda, lo stesso elenco compare in alto
+in un riquadro giallo. Il pallino non entra nel file esportato.
+
 ## Brand
 
 > Con la funzionalità **Brand** (area *Anagrafiche*, serve *Aziende*, spenta

@@ -34,6 +34,13 @@ versionamento semantico.
   ruolo `warehouse` e alle sedi dell'azienda dal pannello ordine.
 
 ### Aggiunto
+- Anagrafiche: pallino giallo nella prima colonna degli elenchi di aziende,
+  persone e fornitori quando manca qualcosa (brand, recapito, referente, dati
+  di fatturazione; nome, cognome, email), con il motivo nel tooltip, il filtro
+  «Da completare» e il riquadro in alto nella scheda. Regole in
+  `Support\Contacts\PartySignals`, sul `RowSignals` del core: il sito le cambia
+  con `RowSignals::add()` / `remove()` sulle liste `companies`, `contacts`,
+  `suppliers`. Richiede `wonder-image/app` con i segnali di riga.
 - Anagrafiche: spunta «Rappresentante legale» nella riga del referente (scheda
   azienda) e nella riga «Aziende» (scheda persona), accanto a «Ufficio». Vale
   per quel legame, anche più d'uno per azienda; non dà accesso e non cambia
