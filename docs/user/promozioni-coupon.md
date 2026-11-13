@@ -65,6 +65,13 @@ restanti, 15 € in tutto. Lo sconto non supera mai il prezzo della merce.
 Con le campagne e le offerte decide **Non sui prodotti già scontati** di ogni
 coupon.
 
+## Attivare o eliminare più coupon
+
+Nell'elenco dei coupon la casella a sinistra di ogni riga sceglie il coupon,
+quella in alto tutti quelli della pagina. La barra che compare sopra l'elenco
+ha **Attiva**, **Disattiva** ed **Elimina**: valgono per tutti i coupon scelti.
+Un coupon disattivato non si usa più nel carrello finché non lo riattivi.
+
 ## Codici in blocco
 
 Per dare a ogni cliente un codice diverso (un volantino, una newsletter, un

@@ -10,6 +10,7 @@ use Wonder\App\ResourceSchema\PageSchema;
 use Wonder\App\ResourceSchema\ApiSchema;
 use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\TableColumn;
+use Wonder\App\ResourceSchema\TableLayoutSchema;
 use Wonder\Elements\Components\Badge;
 use Wonder\Elements\Components\Button;
 use Wonder\Elements\Components\Card;
@@ -29,6 +30,7 @@ use Wonder\Plugin\Gestionale\Models\Promotions\Coupon;
 use Wonder\Plugin\Gestionale\Models\Promotions\CouponCustomer;
 use Wonder\Plugin\Gestionale\Models\Promotions\CouponRedemption;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
+use Wonder\Plugin\Gestionale\Support\Backend\ListBulkActions;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderResource;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
@@ -292,6 +294,12 @@ class CouponResource extends GestionaleResource
                 'delete',
             ]),
         ];
+    }
+
+    public static function tableLayoutSchema(): TableLayoutSchema
+    {
+        // Attiva, disattiva o elimina più coupon insieme.
+        return ListBulkActions::apply(parent::tableLayoutSchema(), static fn (): array => ListBulkActions::promotions());
     }
 
     public static function pageSchema(): PageSchema
