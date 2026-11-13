@@ -97,10 +97,16 @@ check('il sito aggiunge e toglie segnali sulla lista', function () use ($codici)
     return $codes === ['missing_billing', 'missing_website'];
 });
 
-check('il pallino è la prima colonna della lista', function () {
-    $prima = CompanyResource::tableSchema()[0] ?? null;
+check('il pallino è la prima colonna della lista e non va nell\'export', function () {
+    foreach ([CustomerResource::class, CompanyResource::class, SupplierResource::class] as $classe) {
+        $prima = $classe::tableSchema()[0] ?? null;
+        $dati = $prima !== null ? (array) $prima->toArray() : [];
+        if ($prima === null || $prima->name !== RowSignals::ALIAS || ($dati['exportable'] ?? true) !== false) {
+            return false;
+        }
+    }
 
-    return $prima !== null && str_contains(get_class($prima), 'TableColumn');
+    return true;
 });
 
 summary();
