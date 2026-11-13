@@ -114,6 +114,46 @@ casella a destra (`LabelsResource::printFields()`).
 - `Extensions::run()` avvisa e basta; `Extensions::filter()` fa passare un
   valore da un'estensione all'altra.
 
+## Segnali delle anagrafiche
+
+Le liste di aziende, persone e fornitori hanno nella prima colonna un pallino
+giallo quando alla riga manca qualcosa: il motivo è nel tooltip, il filtro
+«Da completare» tiene solo quelle righe e la scheda lo ripete in alto. Le
+regole sono in `PartySignals` e girano sul meccanismo dei segnali di riga del
+core (`RowSignal` / `RowSignals`, vedi la pagina *Segnali di riga* della
+documentazione dell'app).
+
+| Lista | Chiave | Segnali di default |
+|---|---|---|
+| Aziende (clienti) | `companies` | `missing_brand` (solo clienti, con *Brand*), `missing_contact`, `missing_referent` (con i referenti), `missing_billing` |
+| Persone | `contacts` | `missing_name`, `missing_surname`, `missing_email` |
+| Fornitori | `suppliers` | `missing_contact`, `missing_billing` |
+
+- `missing_contact`: nessuna email, nessun telefono e nessun recapito
+  dell'azienda pieno.
+- `missing_billing`: manca ragione sociale, via, città o paese; in Italia anche
+  partita IVA o codice fiscale, e codice SDI o PEC.
+- `missing_email`: vale l'email di accesso o un recapito personale di tipo email;
+  l'email del legame con l'azienda non conta.
+
+Il sito li cambia da codice, prima che la lista venga disegnata (per esempio in
+`custom/function/function.php`):
+
+```php
+use Wonder\Backend\Table\RowSignal;
+use Wonder\Backend\Table\RowSignals;
+
+RowSignals::add('companies', RowSignal::warning(
+    'missing_website',
+    "COALESCE(TRIM({table}.website), '') = ''",
+    __t('site.signals.missing_website')
+));
+RowSignals::remove('contacts', 'missing_surname');
+```
+
+La condizione è SQL sulla tabella della lista (`{table}`), senza alias `AS`:
+diventa il pallino, il filtro e l'avviso della scheda insieme.
+
 ## Riquadri dei moduli nelle Impostazioni
 
 Un modulo aggiunge un riquadro alle Impostazioni di Set Up senza toccare il

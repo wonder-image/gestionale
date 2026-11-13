@@ -19,6 +19,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\ProductSupplier;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocument;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockDocumentResource;
 use Wonder\Plugin\Gestionale\Support\Contacts\CustomerSheet;
+use Wonder\Plugin\Gestionale\Support\Contacts\PartySignals;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
 use Wonder\Plugin\Gestionale\Support\Stock\StockValue;
 
@@ -114,6 +115,16 @@ final class SupplierResource extends CompanyResource
         return "is_supplier = 'true'";
     }
 
+    public static function signalList(): string
+    {
+        return PartySignals::SUPPLIERS;
+    }
+
+    protected static function defaultRowSignals(): array
+    {
+        return PartySignals::suppliers();
+    }
+
     /** La scheda del fornitore: i suoi dati e la fatturazione, poi carichi e articoli forniti. */
     public static function showLayoutSchema(array $contact): Container
     {
@@ -123,6 +134,7 @@ final class SupplierResource extends CompanyResource
             : Accordion::make($titolo)->components([RichText::make($html)->tag('div')->columnSpan(12)])->columnSpan(12);
 
         $sinistra = [
+            ...array_filter([static::signalsAlert($id)]),
             (new Card)->components([
                 SectionTitle::make('Tutti i suoi dati')->columnSpan(12),
                 ...CustomerSheet::data($contact, 'Nessun accesso'),

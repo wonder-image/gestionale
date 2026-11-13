@@ -1,6 +1,19 @@
 {
     "name": "Gestionale",
     "contacts": {
+        "signals": {
+            "missing_brand": "Manca il brand",
+            "missing_contact": "Manca un recapito: email o telefono",
+            "missing_referent": "Manca un referente",
+            "missing_billing": "Dati di fatturazione incompleti",
+            "missing_name": "Manca il nome",
+            "missing_surname": "Manca il cognome",
+            "missing_email": "Manca l'email",
+            "filter": "Da completare",
+            "filter_all": "Tutti",
+            "filter_only": "Solo da completare",
+            "sheet_title": "Da completare"
+        },
         "relations": {
             "title_people": "Referenti",
             "title_companies": "Aziende",
