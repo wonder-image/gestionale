@@ -8,6 +8,8 @@ require __DIR__ . '/harness.php';
 use Wonder\App\ResourceSchema\TableLayoutSchema;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductResource;
+use Wonder\Plugin\Gestionale\Resources\Promotions\CouponResource;
+use Wonder\Plugin\Gestionale\Resources\Promotions\DiscountCampaignResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderActionResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderResource;
 use Wonder\Plugin\Gestionale\Support\Backend\ListBulkActions;
@@ -75,18 +77,49 @@ check('il gestore della barra passa l\'utente all\'azione', function () use ($lo
     return $result === ['done' => [1], 'failed' => []] && $calls === [[OrderActions::CONFIRM, 1, 5]];
 });
 
+check('ordini: nel menu della riga solo le azioni che valgono per il suo stato', function () use ($load, $run) {
+    $actions = ListBulkActions::orders(OrderActionResource::class, $load, $run, []);
+
+    // Core senza voci di riga: le azioni restano solo nella barra.
+    if (!method_exists($actions[0], 'showsInRow')) {
+        return true;
+    }
+
+    $shown = static fn (array $row): array => array_values(array_map(
+        static fn ($a): string => $a->key(),
+        array_filter($actions, static fn ($a): bool => $a->showsInRow($row))
+    ));
+
+    return $shown(['status' => 'pending', 'channel' => 'web']) === [OrderActions::CONFIRM, OrderActions::CANCEL]
+        && $shown(['status' => 'confirmed', 'channel' => 'web', 'fulfillment_status' => 'unfulfilled']) === [OrderActions::FULFILL, OrderActions::CANCEL]
+        && $shown(['status' => 'cancelled', 'channel' => 'web']) === []
+        && $shown(['status' => 'draft', 'channel' => 'office']) === [];
+});
+
+check('coupon e campagne: attiva, disattiva ed elimina, solo nella barra', function () {
+    $actions = ListBulkActions::promotions();
+    $keys = array_map(static fn ($a): string => $a->key(), $actions);
+
+    return $keys === ['activate', 'deactivate', 'delete']
+        && $actions[0]->getPermission() === 'update'
+        && $actions[2]->getPermission() === 'delete'
+        && (!method_exists($actions[0], 'inRow') || !$actions[0]->inRow());
+});
+
 check('apply() mette le azioni nel layout', function () {
     $layout = ListBulkActions::apply(TableLayoutSchema::for(ProductResource::class), static fn (): array => ListBulkActions::products());
 
     return count($layout->get('bulk_actions')) === 2;
 });
 
-check('le liste vere: due azioni sugli articoli, tre sugli ordini, nessuna sulle opzioni', function () {
+check('le liste vere: articoli, ordini, coupon e campagne; nessuna sulle opzioni', function () {
     $keys = static fn (TableLayoutSchema $layout): array => array_map(static fn ($a): string => $a->key(), (array) $layout->get('bulk_actions'));
 
     return $keys(ProductModelResource::tableLayoutSchema()) === ['publish', 'draft']
         && $keys(OrderResource::tableLayoutSchema()) === [OrderActions::CONFIRM, OrderActions::FULFILL, OrderActions::CANCEL]
-        && $keys(ProductResource::tableLayoutSchema()) === [];
+        && $keys(ProductResource::tableLayoutSchema()) === []
+        && $keys(CouponResource::tableLayoutSchema()) === ['activate', 'deactivate', 'delete']
+        && $keys(DiscountCampaignResource::tableLayoutSchema()) === ['activate', 'deactivate', 'delete'];
 });
 
 check('la lista delle opzioni (ProductResource) ha il suo layout, senza barra', function () {
@@ -103,6 +136,12 @@ check('i testi esistono in italiano', function () {
 
     foreach (['publish', 'draft'] as $key) {
         if (trim((string) ($bulk['products'][$key] ?? '')) === '') {
+            return false;
+        }
+    }
+
+    foreach (['activate', 'deactivate'] as $key) {
+        if (trim((string) ($bulk['promotions'][$key] ?? '')) === '') {
             return false;
         }
     }

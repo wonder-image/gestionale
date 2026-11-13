@@ -723,6 +723,16 @@ wonder-image/app):
   e poi da `OrderActionResource::run()`, con la sua transazione: l'azione ha
   `transaction(false)`. Il permesso è `update` di `OrderActionResource`,
   perché quello di `OrderResource` non limita `update`.
+  Le tre azioni hanno anche `->row(fn ($row) => …)`: compaiono nel menu dei
+  tre puntini della riga solo se `OrderActions::available($row, $features)`
+  le contiene (la riga di SSP ha `status`, `channel`, `fulfillment_*`). Su un
+  core senza `row()` restano solo nella barra (`method_exists`).
+- `promotions()`: *Attiva* / *Disattiva* (`BulkAction::toggle()` su `active`)
+  ed *Elimina* (`BulkAction::delete()`), su `CouponResource` e
+  `DiscountCampaignResource`. Niente voci di riga: il menu ha già i suoi
+  bottoni.
+- I messaggi di errore usano `{{rows}}` («Azione non disponibile per 1 riga
+  per lo stato dell'ordine.»): il core lo sostituisce con il numero di righe.
 - `apply()` non fa niente su un core senza azioni di massa.
 
 Test: `tests/ListBulkActionsTest.php`.

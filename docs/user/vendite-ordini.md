@@ -39,9 +39,17 @@ l'elenco, con quanti ne hai scelti e tre pulsanti: **Conferma**, **Segna
 evaso** e **Annulla**. Ogni ordine segue le regole dei pulsanti della sua
 scheda: un ordine già annullato non si conferma, una bozza da ufficio si
 conferma solo dalla sua pagina. Gli ordini che non si possono toccare restano
-come sono e il messaggio finale dice quanti e perché. Cambiare pagina, cercare
+come sono e il messaggio finale dice quanti e perché, una riga per motivo:
+per esempio «Righe aggiornate: 4.» e sotto «Azione non disponibile per 1 riga
+per lo stato dell'ordine.». Cambiare pagina, cercare
 o filtrare toglie la scelta. Servono i permessi per agire sugli ordini, gli
 stessi dei pulsanti della scheda.
+
+Per un solo ordine c'è anche il menu dei tre puntini a destra della riga: sotto
+le voci di sempre trovi **Conferma**, **Segna evaso** e **Annulla**, ma solo
+quelle che valgono per lo stato di quell'ordine. Un ordine in attesa mostra
+*Conferma* e *Annulla*, uno confermato da spedire a mano *Segna evaso* e
+*Annulla*, uno annullato nessuna. Prima di procedere chiede conferma.
 
 ## Nella home
 

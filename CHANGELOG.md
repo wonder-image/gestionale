@@ -34,6 +34,15 @@ versionamento semantico.
   ruolo `warehouse` e alle sedi dell'azienda dal pannello ordine.
 
 ### Aggiunto
+- Ordini: *Conferma*, *Segna evaso* e *Annulla* anche nel menu dei tre puntini
+  della riga, solo quando valgono per lo stato dell'ordine
+  (`BulkAction::row()` con `OrderActions::available()`).
+- Promozioni: caselle e barra delle azioni di massa su coupon e campagne di
+  sconto, con *Attiva*, *Disattiva* ed *Elimina*
+  (`ListBulkActions::promotions()`).
+- Azioni di massa: il messaggio finale dice per quante righe vale ogni errore
+  («Azione non disponibile per 1 riga per lo stato dell'ordine.»), una riga
+  per motivo. Serve il core con `{{rows}}`.
 - Home del backend: il riquadro «Ordini» con gli ordini del mese (e di oggi)
   e tre code, in attesa di conferma, da evadere e da pagare; ogni card apre
   l'elenco Ordini già filtrato. Nuovo filtro «Situazione» nell'elenco

@@ -9,7 +9,8 @@ use Wonder\Plugin\Gestionale\Support\Orders\OrderActions;
 
 /**
  * Le azioni di massa delle liste del gestionale (`bulkActions()` del core):
- * pubblica o metti in bozza più articoli, conferma, evadi o annulla più ordini.
+ * pubblica o metti in bozza più articoli, conferma, evadi o annulla più ordini,
+ * attiva, disattiva o elimina più coupon e campagne di sconto.
  *
  * Su un core senza azioni di massa la lista resta com'era.
  */
@@ -55,9 +56,30 @@ final class ListBulkActions
     }
 
     /**
+     * Attiva / Disattiva / Elimina per coupon e campagne: la colonna
+     * `active` come «Attiva/Disattiva» della riga, l'eliminazione come il
+     * bottone della lista (stessi controlli e stessi hook).
+     *
+     * @return list<BulkAction>
+     */
+    public static function promotions(): array
+    {
+        return [
+            BulkAction::toggle('activate', 'active', true)
+                ->label(self::text('promotions.activate'))
+                ->icon('bi bi-toggle-on'),
+            BulkAction::toggle('deactivate', 'active', false)
+                ->label(self::text('promotions.deactivate'))
+                ->icon('bi bi-toggle-off'),
+            BulkAction::delete(),
+        ];
+    }
+
+    /**
      * Conferma, evadi, annulla. Il permesso è quello dei bottoni della
      * scheda (`$permissionResource`, la pagina delle azioni sull'ordine);
-     * ogni ordine passa da `$run` con la sua transazione.
+     * ogni ordine passa da `$run` con la sua transazione. Le stesse azioni
+     * stanno nel menu a 3 puntini delle righe per cui valgono.
      *
      * @param class-string $permissionResource
      * @param Closure(int): array<string, mixed> $load l'ordine visibile, [] se non c'è
@@ -83,6 +105,12 @@ final class ListBulkActions
                     $run,
                     $features
                 ));
+
+            // Anche nel menu della riga, se l'azione vale per il suo stato
+            // (core con le voci di riga).
+            if (method_exists($action, 'row')) {
+                $action->row(static fn (array $row): bool => in_array($key, OrderActions::available($row, $features), true));
+            }
 
             if ($key === OrderActions::CANCEL) {
                 $action->variant('danger')->confirm(self::text('orders.cancel_confirm'));

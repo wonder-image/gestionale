@@ -78,3 +78,10 @@ lo scrive come tale, senza confonderlo con «nessuna campagna».
 
 Eliminare una campagna la toglie dall'elenco; gli ordini già fatti restano
 com'erano, perché portano scritto il prezzo che hanno pagato.
+
+## Più campagne insieme
+
+Nell'elenco delle campagne la casella a sinistra di ogni riga sceglie la
+campagna, quella in alto tutte quelle della pagina. La barra che compare sopra
+l'elenco ha **Attiva**, **Disattiva** ed **Elimina** per tutte le campagne
+scelte.

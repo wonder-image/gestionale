@@ -8,6 +8,7 @@ use Wonder\App\ResourceSchema\PageSchema;
 use Wonder\App\ResourceSchema\ApiSchema;
 use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\TableColumn;
+use Wonder\App\ResourceSchema\TableLayoutSchema;
 use Wonder\Elements\Components\Alert;
 use Wonder\Elements\Components\Badge;
 use Wonder\Elements\Components\Card;
@@ -18,6 +19,7 @@ use Wonder\Elements\Form\Form;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Promotions\DiscountCampaign;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
+use Wonder\Plugin\Gestionale\Support\Backend\ListBulkActions;
 use Wonder\Plugin\Gestionale\Support\Numbers;
 use Wonder\Plugin\Gestionale\Support\Promotions\Campaigns;
 use Wonder\Plugin\Gestionale\Support\Promotions\ProductScope;
@@ -223,6 +225,12 @@ class DiscountCampaignResource extends GestionaleResource
                 'delete',
             ]),
         ];
+    }
+
+    public static function tableLayoutSchema(): TableLayoutSchema
+    {
+        // Attiva, disattiva o elimina più campagne insieme.
+        return ListBulkActions::apply(parent::tableLayoutSchema(), static fn (): array => ListBulkActions::promotions());
     }
 
     public static function pageSchema(): PageSchema
