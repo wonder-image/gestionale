@@ -743,11 +743,11 @@
         },
         "orders": {
             "confirm": "Conferma",
-            "confirm_confirm": "Confermare gli ordini scelti? Si conferma solo chi è in attesa.",
+            "confirm_confirm": "Confermare gli ordini scelti? Si confermano solo quelli ancora da confermare.",
             "fulfill": "Segna evaso",
-            "fulfill_confirm": "Segnare evasi gli ordini scelti? Vale solo per chi si evade a mano.",
+            "fulfill_confirm": "Segnare evasi gli ordini scelti? Vale solo per quelli che si evadono a mano.",
             "cancel": "Annulla",
-            "cancel_confirm": "Annullare gli ordini scelti? L'annullamento non si torna indietro.",
+            "cancel_confirm": "Annullare gli ordini scelti? Non si torna indietro.",
             "not_found": "Ordine non trovato.",
             "unavailable": "Azione non disponibile per lo stato dell'ordine.",
             "failed": "Operazione non riuscita."

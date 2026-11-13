@@ -709,6 +709,24 @@ Una funzionalità accende l'altra a catena: `returns` richiede `orders`
 la pagina *Registra reso*, la voce nel menu dell'ordine e la tabella dei resi
 nella scheda.
 
+## Azioni di massa nelle liste
+
+`Support\Backend\ListBulkActions` dichiara le azioni di massa del core
+(`TableLayoutSchema::bulkActions()`, vedi *Azioni di massa* nella doc di
+wonder-image/app):
+
+- `products()`: *Pubblica* / *Metti in bozza*, `BulkAction::toggle()` sulla
+  colonna `visible` di `ProductModelResource`. `ProductResource` (le opzioni)
+  ha il suo `tableLayoutSchema()` e non le eredita.
+- `orders()`: *Conferma*, *Segna evaso*, *Annulla* su `OrderResource`. Ogni id
+  passa da `OrderActions::available()` (stesse regole dei bottoni della scheda)
+  e poi da `OrderActionResource::run()`, con la sua transazione: l'azione ha
+  `transaction(false)`. Il permesso è `update` di `OrderActionResource`,
+  perché quello di `OrderResource` non limita `update`.
+- `apply()` non fa niente su un core senza azioni di massa.
+
+Test: `tests/ListBulkActionsTest.php`.
+
 ## Errori che il commerciante legge
 
 I servizi lanciano `UserError::make('gruppo.chiave')`; la frase sta in

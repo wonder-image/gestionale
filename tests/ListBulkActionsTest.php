@@ -6,8 +6,10 @@ require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
 use Wonder\App\ResourceSchema\TableLayoutSchema;
+use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderActionResource;
+use Wonder\Plugin\Gestionale\Resources\Sales\OrderResource;
 use Wonder\Plugin\Gestionale\Support\Backend\ListBulkActions;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderActions;
 
@@ -77,6 +79,14 @@ check('apply() mette le azioni nel layout', function () {
     $layout = ListBulkActions::apply(TableLayoutSchema::for(ProductResource::class), static fn (): array => ListBulkActions::products());
 
     return count($layout->get('bulk_actions')) === 2;
+});
+
+check('le liste vere: due azioni sugli articoli, tre sugli ordini, nessuna sulle opzioni', function () {
+    $keys = static fn (TableLayoutSchema $layout): array => array_map(static fn ($a): string => $a->key(), (array) $layout->get('bulk_actions'));
+
+    return $keys(ProductModelResource::tableLayoutSchema()) === ['publish', 'draft']
+        && $keys(OrderResource::tableLayoutSchema()) === [OrderActions::CONFIRM, OrderActions::FULFILL, OrderActions::CANCEL]
+        && $keys(ProductResource::tableLayoutSchema()) === [];
 });
 
 check('la lista delle opzioni (ProductResource) ha il suo layout, senza barra', function () {
