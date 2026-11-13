@@ -59,6 +59,10 @@ Lo **stato** è **Pubblicato** (l'articolo si vede nel negozio) oppure **Bozza**
 (lo prepari e non si vede). Un click sul badge lo cambia, senza aprire
 l'articolo.
 
+Per cambiare lo stato a più articoli insieme spunta la casella a sinistra delle
+righe (quella in alto le sceglie tutte nella pagina) e usa **Pubblica** o
+**Metti in bozza** nella barra che compare sopra l'elenco.
+
 Con **Filtri** restringi l'elenco per **stato**, **marchio** e **categoria**
 (scegliendo una categoria entrano anche le sue sottocategorie). **Cerca** trova
 per nome e per SKU. Prodotti, multiprodotti e abbonamenti stanno tutti in

@@ -34,6 +34,13 @@ versionamento semantico.
   ruolo `warehouse` e alle sedi dell'azienda dal pannello ordine.
 
 ### Aggiunto
+- Azioni di massa nelle liste: in *Catalogo → Prodotti* si pubblicano o si
+  mettono in bozza più articoli insieme; in *Vendite → Ordini* si confermano,
+  si segnano evasi o si annullano più ordini, ognuno con i controlli dei
+  bottoni della scheda (`OrderActions::available()`, poi
+  `OrderActionResource::run()`) e col permesso di `OrderActionResource`.
+  `Support\Backend\ListBulkActions`; con un core senza azioni di massa la
+  lista resta com'era. Testi in `gestionale.bulk.*`.
 - Anagrafiche: spunta «Rappresentante legale» nella riga del referente (scheda
   azienda) e nella riga «Aziende» (scheda persona), accanto a «Ufficio». Vale
   per quel legame, anche più d'uno per azienda; non dà accesso e non cambia
