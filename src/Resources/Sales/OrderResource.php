@@ -20,6 +20,7 @@ use Wonder\Elements\Components\DataItem;
 use Wonder\Elements\Components\Modal;
 use Wonder\Elements\Components\RichText;
 use Wonder\Elements\Components\SectionTitle;
+use Wonder\App\Visibility\RowVisibility;
 use Wonder\Http\SafeRedirect;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
@@ -35,6 +36,7 @@ use Wonder\Plugin\Gestionale\Support\Contacts\CustomerKind;
 use Wonder\Plugin\Gestionale\Support\Contacts\Brands;
 use Wonder\Plugin\Gestionale\Support\Contacts\DocumentBrands;
 use Wonder\Plugin\Gestionale\Support\Backend\HeaderActions;
+use Wonder\Plugin\Gestionale\Support\Backend\ListBulkActions;
 use Wonder\Plugin\Gestionale\Support\Documents\OrderProforma;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderActions;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
@@ -158,7 +160,7 @@ final class OrderResource extends GestionaleResource
 
     public static function tableLayoutSchema(): TableLayoutSchema
     {
-        return SalesAgents::filter(TableLayoutSchema::for(static::class)
+        $layout = SalesAgents::filter(TableLayoutSchema::for(static::class)
             ->title('Ordini')
             ->results()
             ->hideButtonAdd()
@@ -182,6 +184,14 @@ final class OrderResource extends GestionaleResource
                 MovementPeriod::filterOptions(),
                 static fn (array $values): string => MovementPeriod::sql((string) ($values[0] ?? ''), 'ordered_at', new DateTimeImmutable('now'))
             ));
+
+        // Conferma, evadi, annulla più ordini: stessi controlli dei bottoni della scheda.
+        return ListBulkActions::apply($layout, static fn (): array => ListBulkActions::orders(
+            OrderActionResource::class,
+            static fn (int $id): array => (array) (RowVisibility::current()->findById(Order::class, $id) ?? []),
+            static fn (string $action, int $id, int $userId): array => OrderActionResource::run($action, $id, $userId),
+            static::actionFeatures()
+        ));
     }
 
     /**

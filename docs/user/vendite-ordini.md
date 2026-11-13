@@ -30,6 +30,18 @@ compaiono. Con la **Vendita in ufficio** ci sono anche le bozze, con *Bozza* al
 posto del numero: si aprono e si confermano dalla loro pagina (vedi
 [Ordini da ufficio](vendite-ordini-da-ufficio.md)).
 
+### Più ordini insieme
+
+La casella a sinistra di ogni riga sceglie l'ordine; quella in alto sceglie
+tutti quelli della pagina. Appena ne scegli uno compare una barra sopra
+l'elenco, con quanti ne hai scelti e tre pulsanti: **Conferma**, **Segna
+evaso** e **Annulla**. Ogni ordine segue le regole dei pulsanti della sua
+scheda: un ordine già annullato non si conferma, una bozza da ufficio si
+conferma solo dalla sua pagina. Gli ordini che non si possono toccare restano
+come sono e il messaggio finale dice quanti e perché. Cambiare pagina, cercare
+o filtrare toglie la scelta. Servono i permessi per agire sugli ordini, gli
+stessi dei pulsanti della scheda.
+
 ## La scheda
 
 Il numero sta nel titolo; sotto, in piccolo, *Creato il* con data e ora e il

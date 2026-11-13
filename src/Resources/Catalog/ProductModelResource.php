@@ -77,6 +77,7 @@ use Wonder\Plugin\Gestionale\Support\Catalog\Skeleton;
 use Wonder\Plugin\Gestionale\Support\Catalog\VersionName;
 use Wonder\Plugin\Gestionale\Support\Catalog\Sku;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
+use Wonder\Plugin\Gestionale\Support\Backend\ListBulkActions;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
@@ -1405,6 +1406,9 @@ HTML
             // Meta e Google sono feed a indirizzo fisso: scheda «Feed prodotti», non Esporta.
             ->feeds(ProductFeeds::forTable())
             ->filterCustom('Stato', 'visible', ['' => 'Tutti', 'true' => 'Pubblicato', 'false' => 'Bozza']);
+
+        // Pubblica / Metti in bozza più articoli insieme.
+        ListBulkActions::apply($layout, static fn (): array => ListBulkActions::products());
 
         $tipi = static::activeTypes();
 

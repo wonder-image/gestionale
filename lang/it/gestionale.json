@@ -748,5 +748,22 @@
             "server": "Nella Google Cloud Console abilita {{apis}} e crea una chiave API limitata a queste API: con l'ID progetto va in «Chiave privata».",
             "oauth": "In Google Auth Platform crea un ID client OAuth 2.0 di tipo «Applicazione web» con il dominio del sito tra le origini JavaScript autorizzate: va in «Google Client ID»."
         }
+    },
+    "bulk": {
+        "products": {
+            "publish": "Pubblica",
+            "draft": "Metti in bozza"
+        },
+        "orders": {
+            "confirm": "Conferma",
+            "confirm_confirm": "Confermare gli ordini scelti? Si confermano solo quelli ancora da confermare.",
+            "fulfill": "Segna evaso",
+            "fulfill_confirm": "Segnare evasi gli ordini scelti? Vale solo per quelli che si evadono a mano.",
+            "cancel": "Annulla",
+            "cancel_confirm": "Annullare gli ordini scelti? Non si torna indietro.",
+            "not_found": "Ordine non trovato.",
+            "unavailable": "Azione non disponibile per lo stato dell'ordine.",
+            "failed": "Operazione non riuscita."
+        }
     }
 }
