@@ -5,6 +5,22 @@ versionamento semantico.
 
 ## 0.1.0 — non rilasciata
 
+### Cambiato
+- Email: ordini, abbonamenti, prodotti sotto scorta e avviso dei pagamenti si
+  compongono con `MailMessage` del core, con la grafica delle email del sito
+  (pulsanti, riepiloghi, tabella degli articoli). Con un core senza
+  `MailMessage`, o con la vista copiata dal sito in
+  `custom/modules/gestionale/view/emails/`, il corpo resta quello delle viste.
+  `Mailer::prepare()` manda intatto il corpo composto e difende con `shield()`
+  quello scritto a mano.
+- Email degli ordini: articoli in colonna con `MailMessage::items()` (quantità,
+  prezzo, listino barrato, totale riga) e totali scomposti (prodotti, sconto,
+  spedizione, costi, IVA, totale). Al cliente, e solo se tutti i prodotti ne
+  hanno una, la foto nella misura più leggera generata (di solito 240px, nel
+  formato dell'originale); le righe senza la foto copiata ripiegano su quella
+  del prodotto. Email sotto scorta in tabella con `MailMessage::table()`.
+  Serve un core con `items()`: con uno più vecchio si torna alle viste.
+
 ### Corretto
 - Anagrafiche: la riga «nuova persona» dei referenti non crea più un doppione
   quando l'email è già di una persona: il form avvisa mentre scrivi e al

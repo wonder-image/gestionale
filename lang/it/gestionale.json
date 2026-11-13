@@ -694,6 +694,18 @@
                 "title": "Crea la tua password per seguire i tuoi ordini",
                 "button": "Scegli la password"
             },
+            "items": {
+                "choice": "Scelta: :name"
+            },
+            "totals": {
+                "products": "Prodotti",
+                "discount": "Sconto",
+                "shipping": "Spedizione",
+                "fees": "Costi",
+                "tax": "IVA",
+                "tax_included": "di cui IVA",
+                "total": "Totale"
+            },
             "link": {
                 "customer": "Vedi l'ordine",
                 "merchant": "Apri l'ordine nel gestionale"

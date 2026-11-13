@@ -41,9 +41,11 @@ sotto scorta; se la abbassi sotto i pezzi che hai, l'avviso si chiude.
 ## L'email
 
 Ogni quarto d'ora il gestionale guarda se qualche prodotto è arrivato alla sua
-scorta minima (o sotto) e, se sì, manda **un'email sola** con l'elenco: nome,
-opzione, SKU — con più sedi anche la sede —, quanti ne restano e la soglia. In
-fondo c'è il link che apre le giacenze già filtrate.
+scorta minima (o sotto) e, se sì, manda **un'email sola** con una tabella:
+per ogni prodotto nome, opzione e SKU (con più sedi anche la sede), poi in
+colonna quanti ne restano e la soglia. In fondo c'è il pulsante che apre le
+giacenze già filtrate. L'email ha la stessa
+grafica delle altre email del sito.
 
 - **Per ogni prodotto, e per ogni sede, l'email arriva una volta.** Torna
   solo se in quella sede risale sopra la soglia e poi ci ricade.

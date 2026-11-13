@@ -4,11 +4,13 @@ namespace Wonder\Plugin\Gestionale\Support\Payments;
 
 use RuntimeException;
 use Throwable;
+use Wonder\App\Support\Mail\MailMessage;
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Providers\Payments\PaymentStart;
 use Wonder\Plugin\Gestionale\Support\Errors\Errors;
+use Wonder\Plugin\Gestionale\Support\Mail\MailBuilder;
 use Wonder\Plugin\Gestionale\Support\Mail\Mailer;
 use Wonder\Plugin\Gestionale\Support\Mail\Recipients;
 use Wonder\Plugin\Gestionale\Support\Orders\Lifecycle;
@@ -283,10 +285,12 @@ final class OnlinePayments
                 return;
             }
 
-            Mailer::send('payment.review', $to, 'Pagamento da controllare', sprintf(
-                '<p>%s</p><p>Controlla il pagamento nella dashboard di Stripe e, se serve, rimborsalo da lì.</p>',
-                htmlspecialchars($message, ENT_QUOTES, 'UTF-8')
-            ));
+            $advice = 'Controlla il pagamento nella dashboard di Stripe e, se serve, rimborsalo da lì.';
+            $body = MailBuilder::available()
+                ? (string) MailMessage::make()->preheader($message)->heading('Pagamento da controllare')->notice($message, 'warning')->text($advice)
+                : sprintf('<p>%s</p><p>%s</p>', htmlspecialchars($message, ENT_QUOTES, 'UTF-8'), $advice);
+
+            Mailer::send('payment.review', $to, 'Pagamento da controllare', $body);
         } catch (Throwable $error) {
             Errors::internal($error, 'payments.alert', ['action' => $action] + $context);
         }
