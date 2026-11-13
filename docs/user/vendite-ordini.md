@@ -23,7 +23,8 @@ negozio; passa sopra con il mouse per leggerle), **Cliente**, **Totale**,
 colorate: **Ordine**, **Pagamento**, **Evasione**. Cliccando il numero si apre
 la scheda.
 
-In alto puoi filtrare per **Ordine**, **Pagamento**, **Evasione** e **Periodo**,
+In alto puoi filtrare per **Ordine**, **Pagamento**, **Evasione**,
+**Situazione** e **Periodo**,
 e cercare per numero, nome, ragione sociale o email del cliente.
 Nell'elenco ci sono solo gli ordini veri: i carrelli ancora aperti non
 compaiono. Con la **Vendita in ufficio** ci sono anche le bozze, con *Bozza* al
@@ -41,6 +42,24 @@ conferma solo dalla sua pagina. Gli ordini che non si possono toccare restano
 come sono e il messaggio finale dice quanti e perché. Cambiare pagina, cercare
 o filtrare toglie la scelta. Servono i permessi per agire sugli ordini, gli
 stessi dei pulsanti della scheda.
+
+## Nella home
+
+Il riquadro **Ordini** mette in fila quattro numeri:
+
+- **Ordini del mese**: quanti ne sono arrivati dal primo del mese, e sotto
+  quanti oggi;
+- **In attesa di conferma**: gli ordini ancora da confermare;
+- **Da evadere**: confermati o in lavorazione, con la merce non ancora partita
+  del tutto (un ordine *Pronto per il ritiro* aspetta il cliente e non conta);
+- **Da pagare**: gli ordini aperti con il pagamento non saldato, quelli dove
+  la scheda offre **Registra pagamento**.
+
+Una coda è gialla quando c'è qualcosa da fare, verde quando è vuota. Cliccando
+una card si apre l'elenco già filtrato (filtro **Situazione**, o **Periodo**
+su *Questo mese*) con gli stessi ordini del numero. Gli ordini del mese
+comprendono anche quelli annullati dopo; le bozze da ufficio e i pagamenti
+non riusciti non contano mai.
 
 ## La scheda
 
