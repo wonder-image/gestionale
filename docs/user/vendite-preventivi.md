@@ -82,6 +82,16 @@ Dal menu **⋯** di ogni riga: **Trasforma in ordine**, **Invia al cliente**
 In testa alla pagina del preventivo, vicino a *Guida*, ci sono gli stessi
 bottoni: **Trasforma in ordine**, **Invia al cliente** ed **Elimina**.
 
+## Nella home
+
+Con i preventivi attivi, sotto il riquadro **Ordini** c'è **Preventivi**:
+
+- **Preventivi da inviare**: le bozze non ancora mandate al cliente;
+- **Preventivi in attesa**: inviati e senza risposta; sotto, quanti scadono
+  entro 7 giorni.
+
+Ogni card apre l'elenco con il filtro **Stato** già scelto.
+
 ## La conferma d'ordine in PDF
 
 Sulla scheda di un ordine da ufficio confermato, **PDF** scarica la conferma

@@ -42,6 +42,28 @@ final class WidgetCard
         return '<div class="'.htmlspecialchars($class, ENT_QUOTES, 'UTF-8').'">'.$card->render('bootstrap').'</div>';
     }
 
+    /**
+     * Fino a due card in mezza riga da `xl` in su, ognuna a metà: due gruppi
+     * di seguito fanno una riga da quattro, come le card degli ordini.
+     * Senza card, niente.
+     *
+     * @param list<Component> $cards
+     */
+    public static function halfRow(array $cards): string
+    {
+        if ($cards === []) {
+            return '';
+        }
+
+        $columns = '';
+
+        foreach ($cards as $card) {
+            $columns .= self::column($card, 'col-12 col-md-6');
+        }
+
+        return '<div class="col-12 col-xl-6"><div class="row g-3">'.$columns.'</div></div>';
+    }
+
     /** Bottone piccolo in linea. L'URL va passato non escapato: lo escapa `Button`. */
     public static function button(string $url, string $label, string $variant = 'secondary'): string
     {

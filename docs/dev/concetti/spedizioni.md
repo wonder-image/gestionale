@@ -153,7 +153,8 @@ nel gruppo *Spedizioni* del *Set-up* (`group('spedizioni', …, 70)`),
 `OrderShipmentTableResource` (il blocco *Spedizioni* della scheda ordine), le sei
 azioni in `OrderActions`/`OrderActionResource`, i riquadri `ShipmentsToCheckWidget`
 (`exception` e `failed_attempt`) e `ShippedNotDeliveredWidget` (partite da più di
-`ShipmentAlerts::STALE_DAYS` = 7 giorni e non consegnate). Spente con la funzionalità; i
+`ShipmentAlerts::STALE_DAYS` = 7 giorni e non consegnate), in home subito sotto
+il riquadro «Ordini» (`order()` 16 e 17). Spente con la funzionalità; i
 dati restano.
 
 **Termine dei resi.** `shipped_at` è già il dato da usare, ma oggi il modulo non ha un
